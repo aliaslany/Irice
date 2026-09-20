@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: irice_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/irice_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      # Fails if the committed schema and the generated migrations have drifted.
+      - name: Check migrations are up to date
+        run: |
+          pnpm db:generate
+          if ! git diff --quiet -- drizzle; then
+            echo "::error::Schema changed without a generated migration. Run 'pnpm db:generate' and commit drizzle/."
+            git diff --stat -- drizzle
+            exit 1
+          fi
+
+      - name: Verify schema invariants
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/verify-constraints.sql
