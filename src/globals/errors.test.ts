@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DomainError, isDomainError, toErrorResponse } from "./errors.js";
+import { DomainError, isDomainError, toErrorResponse } from "./errors";
 
 describe("DomainError", () => {
   it("maps codes to HTTP statuses", () => {

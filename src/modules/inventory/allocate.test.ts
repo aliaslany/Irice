@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { DomainError } from "../../globals/errors.js";
-import { grams, kg } from "../../globals/weight.js";
-import { allocateFefo, availableG, isAllocatable, preferredLot } from "./allocate.js";
-import type { AllocatableLot } from "./allocate.js";
+import { DomainError } from "../../globals/errors";
+import { grams, kg } from "../../globals/weight";
+import { allocateFefo, availableG, isAllocatable, preferredLot } from "./allocate";
+import type { AllocatableLot } from "./allocate";
 
 function lot(overrides: Partial<AllocatableLot> & { id: string }): AllocatableLot {
   return {

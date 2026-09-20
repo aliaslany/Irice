@@ -5,11 +5,11 @@
  *
  * See docs/ARCHITECTURE.md §5.
  */
-export * from "./money.js";
-export * from "./weight.js";
-export * from "./digits.js";
-export * from "./date.js";
-export * from "./i18n.js";
-export * from "./rtl.js";
-export * from "./errors.js";
-export { loadEnv, resetEnvCache, type Env } from "./config.js";
+export * from "./money";
+export * from "./weight";
+export * from "./digits";
+export * from "./date";
+export * from "./i18n";
+export * from "./rtl";
+export * from "./errors";
+export { loadEnv, resetEnvCache, type Env } from "./config";

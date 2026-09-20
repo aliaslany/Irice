@@ -10,7 +10,7 @@ import {
   subGrams,
   toKg,
   WeightError,
-} from "./weight.js";
+} from "./weight";
 
 describe("grams()", () => {
   it("rejects fractional grams", () => {

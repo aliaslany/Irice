@@ -6,7 +6,7 @@
  * few values that must be decided in JS — the `dir` attribute, and the direction
  * marks that keep mixed Persian/Latin strings from reordering on screen.
  */
-import type { Locale } from "./i18n.js";
+import type { Locale } from "./i18n";
 
 export type Direction = "rtl" | "ltr";
 

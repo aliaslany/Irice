@@ -61,3 +61,36 @@ jobs:
 
       - name: Verify schema invariants
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/verify-constraints.sql
+
+      # The build prerenders the catalog index, so it needs a seeded database.
+      - name: Seed
+        run: pnpm db:seed
+
+      - name: Build
+        run: pnpm build
+
+      # Smoke test: the pages must actually render, not merely compile. Checks
+      # the RTL attribute, a seeded variety, a Persian-digit price, and that
+      # the lot passport and sitemap resolve.
+      - name: Smoke test
+        run: |
+          pnpm start -p 3000 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://127.0.0.1:3000/ && break; sleep 1; done
+
+          home=$(curl -sf http://127.0.0.1:3000/)
+          echo "$home" | grep -q '<html lang="fa" dir="rtl">' || { echo "::error::home is not RTL fa"; exit 1; }
+          echo "$home" | grep -q 'طارم هاشمی' || { echo "::error::seeded variety missing from home"; exit 1; }
+          echo "$home" | grep -qE '[۰-۹]' || { echo "::error::no Persian digits rendered"; exit 1; }
+
+          curl -sf http://127.0.0.1:3000/rice/tarom-hashemi | grep -q 'application/ld+json' \
+            || { echo "::error::variety page missing structured data"; exit 1; }
+          curl -sf http://127.0.0.1:3000/lot/THM-1405-03 | grep -q 'شناسنامه محموله' \
+            || { echo "::error::lot passport did not render"; exit 1; }
+          curl -sf http://127.0.0.1:3000/sitemap.xml | grep -q '/lot/THM-1405-03' \
+            || { echo "::error::sitemap missing lot passport"; exit 1; }
+
+          # An unknown lot code must 404, not 500.
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/lot/NO-SUCH-LOT)
+          [ "$code" = "404" ] || { echo "::error::unknown lot returned $code, expected 404"; exit 1; }
+
+          echo "smoke test passed"

@@ -8,8 +8,8 @@
  * moves — and in this market it moves weekly — an operator updates one number
  * on the lot and every pack size recalculates.
  */
-import { addRial, mulRatioRial, rial, type Rial } from "../../globals/money.js";
-import { GRAMS_PER_KG, type Grams } from "../../globals/weight.js";
+import { addRial, mulRatioRial, rial, type Rial } from "../../globals/money";
+import { GRAMS_PER_KG, type Grams } from "../../globals/weight";
 
 export interface PriceInput {
   /** The lot's price per kilogram, in rial. */

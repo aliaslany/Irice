@@ -1,3 +1,3 @@
-export * from "./enums.js";
-export * from "./catalog.js";
-export * from "./inventory.js";
+export * from "./enums";
+export * from "./catalog";
+export * from "./inventory";

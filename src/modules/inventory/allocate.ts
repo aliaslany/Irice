@@ -10,8 +10,8 @@
  * policy and the honest one. A lot that is deliberately sold as aged is
  * modelled by its grade and price, not by holding it back.
  */
-import { DomainError } from "../../globals/errors.js";
-import { grams, type Grams } from "../../globals/weight.js";
+import { DomainError } from "../../globals/errors";
+import { grams, type Grams } from "../../globals/weight";
 
 export interface AllocatableLot {
   id: string;

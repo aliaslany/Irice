@@ -21,7 +21,7 @@ import {
   grainTypeEnum,
   lotGradeEnum,
   lotStatusEnum,
-} from "./enums.js";
+} from "./enums";
 
 /**
  * VARIETY — the marketing and SEO entity.

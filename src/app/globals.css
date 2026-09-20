@@ -1,0 +1,6 @@
+@import "tailwindcss";
+@import "../globals/styles/globals.css";
+
+/* Tailwind v4 scans from this file's directory by default; components and
+   modules live a level up, so widen the net explicitly. */
+@source "../";

@@ -9,8 +9,8 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { lots } from "./catalog.js";
-import { stockMovementReasonEnum } from "./enums.js";
+import { lots } from "./catalog";
+import { stockMovementReasonEnum } from "./enums";
 
 /**
  * Append-only stock ledger, in grams.

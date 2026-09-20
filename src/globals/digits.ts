@@ -75,3 +75,35 @@ export function normalizeMobile(input: string): string | null {
   else if (digits.startsWith("9") && digits.length === 10) digits = `0${digits}`;
   return MOBILE_PATTERN.test(digits) ? digits : null;
 }
+
+/**
+ * Format a number for Persian display.
+ *
+ * Distinct from {@link toPersianDigits}, which transliterates digit by digit
+ * and leaves punctuation alone — correct for a date like `۱۴۰۵/۰۶/۲۹`, wrong
+ * for a decimal. Persian uses ٫ (U+066B) as the decimal separator and ٬
+ * (U+066C) for thousands; `toPersianDigits("8.60")` would render `۸.۶۰`, which
+ * is a Latin decimal point in Persian clothing.
+ *
+ * Accepts the numeric strings Postgres returns for `numeric` columns, so a
+ * moisture reading can be passed straight through from the row.
+ */
+export function formatNumberFa(
+  value: number | string,
+  options: { maximumFractionDigits?: number; minimumFractionDigits?: number } = {},
+): string {
+  const numeric = typeof value === "string" ? Number(value) : value;
+  if (!Number.isFinite(numeric)) return "";
+  return new Intl.NumberFormat("fa-IR", {
+    maximumFractionDigits: options.maximumFractionDigits ?? 2,
+    ...(options.minimumFractionDigits === undefined
+      ? {}
+      : { minimumFractionDigits: options.minimumFractionDigits }),
+  }).format(numeric);
+}
+
+/** A percentage with the Persian sign: `۸٫۶٪`. */
+export function formatPercentFa(value: number | string, maximumFractionDigits = 1): string {
+  const formatted = formatNumberFa(value, { maximumFractionDigits });
+  return formatted === "" ? "" : `${formatted}٪`;
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { fromToman, rial, toToman } from "../../globals/money.js";
-import { kg, PACK_SIZES_G } from "../../globals/weight.js";
-import { derivePrice, priceChangePct, priceLotPacks, roundToDisplayStep } from "./price.js";
+import { fromToman, rial, toToman } from "../../globals/money";
+import { kg, PACK_SIZES_G } from "../../globals/weight";
+import { derivePrice, priceChangePct, priceLotPacks, roundToDisplayStep } from "./price";
 
 describe("derivePrice()", () => {
   it("prices a 10kg pack from a per-kg lot price", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentJalaliYear, formatJalali, fromJalali, harvestAge, toJalali } from "./date.js";
+import { currentJalaliYear, formatJalali, fromJalali, harvestAge, toJalali } from "./date";
 
 describe("Jalali conversion", () => {
   it("converts a known Gregorian date to Jalali", () => {

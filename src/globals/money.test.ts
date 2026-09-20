@@ -10,7 +10,7 @@ import {
   subRial,
   toToman,
   MoneyError,
-} from "./money.js";
+} from "./money";
 
 describe("rial()", () => {
   it("accepts integers", () => {

@@ -1,34 +1,35 @@
 /*
- * Design tokens only. No component styles, no utilities — those belong to the
- * component or to Tailwind. Anything in here is a decision the whole product
- * shares: palette, type scale, spacing rhythm, radii, elevation.
+ * Design tokens — and, because this is Tailwind v4, the theme itself.
  *
- * Layout must use logical properties (inline-start/inline-end) so RTL and the
- * LTR export storefront share one stylesheet.
+ * Declaring tokens inside `@theme` means `--color-brand` is simultaneously a
+ * CSS custom property and the source of the `bg-brand` / `text-brand`
+ * utilities. One definition, no drift between a token file and a Tailwind
+ * config.
+ *
+ * Dark mode re-points the same variables, so every utility follows without a
+ * `dark:` prefix on each element.
+ *
+ * Layout must use logical properties (inline-start/inline-end, the ps and pe utilities) so
+ * the RTL storefront and the LTR export storefront share one stylesheet.
  */
 
-@font-face {
-  font-family: "Vazirmatn";
-  src: url("/fonts/Vazirmatn-Variable.woff2") format("woff2-variations");
-  font-weight: 100 900;
-  font-display: swap; /* never block first paint on the Persian webfont */
-}
-
-:root {
+@theme {
   /* Palette — paddy greens and husk neutrals; placeholders until brand lands. */
   --color-bg: #fbfaf7;
   --color-surface: #ffffff;
-  --color-text: #1c1a17;
-  --color-text-muted: #6b6558;
-  --color-border: #e4dfd4;
+  --color-surface-sunken: #f4f1ea;
+  --color-ink: #1c1a17;
+  --color-muted: #6b6558;
+  --color-line: #e4dfd4;
   --color-brand: #3f6b3a;
   --color-brand-strong: #2c4d29;
-  --color-accent: #c08a2e;
+  --color-accent: #b5822a;
   --color-danger: #a8332c;
   --color-success: #2f7a4f;
 
-  /* Type scale */
-  --font-sans: "Vazirmatn", system-ui, sans-serif;
+  /* Vazirmatn is the de facto Persian UI face; system stack until it is self-hosted. */
+  --font-sans: "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
+
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -36,64 +37,77 @@
   --text-xl: 1.375rem;
   --text-2xl: 1.75rem;
   --text-3xl: 2.25rem;
-  --leading-tight: 1.35;
-  --leading-normal: 1.8; /* Persian needs more leading than Latin */
-
-  /* Spacing rhythm */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --space-12: 3rem;
 
   --radius-sm: 0.375rem;
   --radius-md: 0.625rem;
   --radius-lg: 1rem;
-  --shadow-card: 0 1px 2px rgb(28 26 23 / 0.06), 0 8px 24px rgb(28 26 23 / 0.06);
+
+  --shadow-card: 0 1px 2px rgb(28 26 23 / 0.05), 0 8px 24px rgb(28 26 23 / 0.06);
+}
+
+/* Persian text needs more leading than Latin at the same size. */
+:root {
+  --leading-fa: 1.85;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --color-bg: #14130f;
     --color-surface: #1d1b16;
-    --color-text: #f2efe8;
-    --color-text-muted: #a49c8c;
-    --color-border: #2f2b23;
+    --color-surface-sunken: #24211a;
+    --color-ink: #f2efe8;
+    --color-muted: #a49c8c;
+    --color-line: #322e26;
     --color-brand: #7ba874;
     --color-brand-strong: #9cc294;
     --color-accent: #d9a84f;
     --color-danger: #e0776f;
     --color-success: #6cc194;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
   }
 }
 
 :root[data-theme="dark"] {
   --color-bg: #14130f;
   --color-surface: #1d1b16;
-  --color-text: #f2efe8;
-  --color-text-muted: #a49c8c;
-  --color-border: #2f2b23;
+  --color-surface-sunken: #24211a;
+  --color-ink: #f2efe8;
+  --color-muted: #a49c8c;
+  --color-line: #322e26;
   --color-brand: #7ba874;
   --color-brand-strong: #9cc294;
   --color-accent: #d9a84f;
   --color-danger: #e0776f;
   --color-success: #6cc194;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
 }
 
 html {
   font-family: var(--font-sans);
-  line-height: var(--leading-normal);
+  line-height: var(--leading-fa);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
-  background: var(--color-bg);
-  color: var(--color-text);
+  min-height: 100dvh;
 }
 
-/* Persian digits render with tabular figures in tables and price rows. */
+/* Prices and weights align in columns only with tabular figures. */
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* A Latin run (lot code, tracking number) inside RTL text. */
+.ltr-run {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }

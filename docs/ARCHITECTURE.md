@@ -160,10 +160,13 @@ to get right on day one and expensive on day two hundred.
 
 ## 6. Delivery plan
 
+_Status: phase 0 and phase 1 are built. Sections below are the plan as written;
+deviations made while building are recorded in §8._
+
 | Phase | Scope | Done when |
 |---|---|---|
-| 0 — Foundation | Repo, TS config, Postgres, Drizzle schema for Variety/Lot/Sku, globals layer, CI | `pnpm test` + migrations run green in CI |
-| 1 — Catalog & SEO | Variety pages, lot traceability page, content model, sitemap, structured data | A customer can find "برنج هاشمی" on Google and read the lot's harvest year |
+| 0 — Foundation ✅ | Repo, TS config, Postgres, Drizzle schema for Variety/Lot/Sku, globals layer, CI | `pnpm test` + migrations run green in CI |
+| 1 — Catalog & SEO ✅ | Variety pages, lot traceability page, content model, sitemap, structured data | A customer can find "برنج هاشمی" on Google and read the lot's harvest year |
 | 2 — Commerce core | Cart, phone OTP, weight-based shipping, ZarinPal checkout, order emails/SMS | First real order ships |
 | 3 — Trust & local fit | eNamad, 10-day return flow, lab certificates, price history charts, reviews | Parity with the specialist competitors |
 | 4 — Differentiators | Subscriptions, installment plans, per-kg price transparency, QR on the bag | The two things the market doesn't have |
@@ -178,3 +181,34 @@ if the lot model isn't exercised by a real feature it will rot into a metadata b
 2. **Supply**: own mill / fixed partner mills, or aggregating many sellers? Multi-vendor invalidates the single-tenant assumptions above.
 3. **Installments**: in-house schedule, or an external BNPL provider?
 4. **Marketplace strategy**: is Digikala a channel from the start, or is D2C exclusive for brand reasons?
+
+## 8. Decisions changed while building
+
+Recorded here rather than silently edited above, so the reasoning survives.
+
+**Tailwind is configured through the token file, not a JS config** (phase 1).
+Tailwind v4 takes its theme from CSS, so `src/globals/styles/globals.css`
+declares the tokens inside `@theme` and is simultaneously the design-token file
+§5 calls for and the Tailwind theme. One definition; a token and its utility
+cannot drift apart. Dark mode re-points the same custom properties, so utilities
+follow without a `dark:` prefix on every element.
+
+**Relative imports carry no extension** (phase 1). The codebase originally used
+the TypeScript-recommended `./money.js` form. Turbopack does not map a `.js`
+specifier onto a `.ts` source, so the first `next build` failed on every
+internal import. Extensionless is the one form that Next, vitest and tsx all
+resolve. Standalone scripts run through `tsx` for the same reason — bare
+`node --experimental-strip-types` will not resolve them.
+
+**Catalog pages revalidate rather than statically generating per lot.** The plan
+implied `generateStaticParams`. Lot passports are unbounded and grow with every
+harvest, and prices move weekly, so variety and passport pages render on demand
+with a revalidation window (5 minutes for catalog, 1 hour for a passport, which
+is near-immutable once shipped). The index is prerendered at build time, which
+is why CI seeds the database before `pnpm build`.
+
+**The lot passport ignores lot status on purpose.** Every other catalog query
+filters to `active` lots with free stock. `getLotPassport` does not: someone
+holding a bag from a depleted — or recalled — lot still has the right to read
+its provenance. That is the promise the QR code makes. Only the *sale* of a lot
+is gated by status.

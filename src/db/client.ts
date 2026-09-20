@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { loadEnv } from "../globals/config.js";
-import * as schema from "./schema/index.js";
+import { loadEnv } from "../globals/config";
+import * as schema from "./schema/index";
 
 /**
  * One connection pool per process. `max: 10` is a starting point for a single

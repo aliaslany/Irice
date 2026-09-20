@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatNumberFa,
+  formatPercentFa,
   normalizeInput,
   normalizeLetters,
   normalizeMobile,
   toLatinDigits,
   toPersianDigits,
-} from "./digits.js";
+} from "./digits";
 
 describe("digit conversion", () => {
   it("converts Persian digits to Latin", () => {
@@ -52,5 +54,35 @@ describe("normalizeMobile()", () => {
 
   it.each(["0812345678", "0912345678", "not a phone", ""])("rejects %s", (input) => {
     expect(normalizeMobile(input)).toBeNull();
+  });
+});
+
+describe("formatNumberFa()", () => {
+  it("uses the Persian decimal separator, not a Latin dot", () => {
+    // toPersianDigits would give "۸.۶۰" — right digits, wrong punctuation.
+    expect(formatNumberFa("8.60")).toBe("۸٫۶");
+    expect(formatNumberFa("8.60")).not.toContain(".");
+  });
+
+  it("groups thousands the Persian way", () => {
+    expect(formatNumberFa(1234567)).toBe("۱٬۲۳۴٬۵۶۷");
+  });
+
+  it("accepts the strings Postgres returns for numeric columns", () => {
+    expect(formatNumberFa("2.10")).toBe("۲٫۱");
+  });
+
+  it("returns empty for a non-numeric value rather than NaN", () => {
+    expect(formatNumberFa("not a number")).toBe("");
+  });
+});
+
+describe("formatPercentFa()", () => {
+  it("appends the Persian percent sign", () => {
+    expect(formatPercentFa("8.60")).toBe("۸٫۶٪");
+  });
+
+  it("rounds to one fraction digit by default", () => {
+    expect(formatPercentFa(5.74)).toBe("۵٫۷٪");
   });
 });
