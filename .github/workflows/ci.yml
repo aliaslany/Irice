@@ -52,9 +52,6 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Unit tests
-        run: pnpm test
-
       - name: Apply migrations
         run: pnpm db:migrate
 
@@ -70,6 +67,11 @@ jobs:
 
       - name: Verify schema invariants
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/verify-constraints.sql
+
+      # Must run after migrations: every integration test hits real tables
+      # over $DATABASE_URL, not a mock.
+      - name: Unit tests
+        run: pnpm test
 
       # The build prerenders the catalog index, so it needs a seeded database.
       - name: Seed
