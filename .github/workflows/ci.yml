@@ -84,6 +84,19 @@ jobs:
       # the RTL attribute, a seeded variety, a Persian-digit price, and that
       # the lot passport and sitemap resolve.
       - name: Smoke test
+        env:
+          # A plain POSIX bracket range over non-ASCII characters —
+          # grep -qE '[۰-۹]' — fails with "grep: Invalid collation
+          # character" under this runner's locale: `C`/`C.UTF-8` know the
+          # bytes are valid UTF-8 but define no collation order for
+          # anything outside ASCII, so a *range* across them has no
+          # meaning to glibc's regex engine (an exact-character match,
+          # with no range, would have been fine). Reproduced locally under
+          # both LC_ALL=C and LC_ALL=C.utf8. Fixed by pairing PCRE mode's
+          # \x{} codepoint escapes (`-P`, no collation involved at all)
+          # with an explicit UTF-8 locale, which \x{} itself requires to
+          # treat the codepoint as Unicode rather than a raw byte.
+          LC_ALL: C.utf8
         run: |
           pnpm start -p 3000 &
           for i in $(seq 1 60); do curl -sf -o /dev/null http://127.0.0.1:3000/ && break; sleep 1; done
@@ -91,7 +104,8 @@ jobs:
           home=$(curl -sf http://127.0.0.1:3000/)
           echo "$home" | grep -q '<html lang="fa" dir="rtl">' || { echo "::error::home is not RTL fa"; exit 1; }
           echo "$home" | grep -q 'طارم هاشمی' || { echo "::error::seeded variety missing from home"; exit 1; }
-          echo "$home" | grep -qE '[۰-۹]' || { echo "::error::no Persian digits rendered"; exit 1; }
+          # ۰-۹ (U+06F0-U+06F9), as a PCRE codepoint range — see the env comment above.
+          echo "$home" | grep -qP '[\x{06F0}-\x{06F9}]' || { echo "::error::no Persian digits rendered"; exit 1; }
 
           curl -sf http://127.0.0.1:3000/rice/tarom-hashemi | grep -q 'application/ld+json' \
             || { echo "::error::variety page missing structured data"; exit 1; }
