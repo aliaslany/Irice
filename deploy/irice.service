@@ -1,0 +1,23 @@
+[Unit]
+Description=Irice storefront (next start)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=irice
+WorkingDirectory=/opt/irice/app
+EnvironmentFile=/etc/irice/irice.env
+ExecStart=/usr/bin/pnpm start -p 3000
+Restart=on-failure
+RestartSec=3
+
+# Basic hardening — the process only needs its own working directory and
+# the certificate upload folder (var/certificates, under WorkingDirectory).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/irice/app
+
+[Install]
+WantedBy=multi-user.target

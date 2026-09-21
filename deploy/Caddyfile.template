@@ -1,0 +1,15 @@
+{
+	# Caddy issues and renews the TLS certificate itself (Let's Encrypt) —
+	# nothing else to configure for HTTPS. Requires __DOMAIN__ to already
+	# point at this server's IP before Caddy starts, or issuance fails.
+	email __ADMIN_EMAIL__
+}
+
+__DOMAIN__ {
+	reverse_proxy 127.0.0.1:3000
+	encode gzip
+
+	# Certificate PDFs/images are served by the app's own route handler
+	# (app/certificates/file/[filename]/route.ts), not as static files —
+	# nothing special needed here, they go through the same reverse proxy.
+}
