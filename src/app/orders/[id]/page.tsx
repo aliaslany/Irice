@@ -9,6 +9,9 @@ import { formatJalali } from "../../../globals/date";
 import { toPersianDigits } from "../../../globals/digits";
 import { getCurrentCustomer } from "../../lib/session";
 import { cancelOrderAction, retryPaymentAction } from "../../_actions/checkout-actions";
+import { checkReturnEligibility } from "../../../modules/returns/eligibility";
+import { getReturnRequestForOrder } from "../../../modules/returns/returns";
+import { ReturnRequestForm } from "./ReturnRequestForm";
 
 export const metadata: Metadata = { title: "جزئیات سفارش", robots: { index: false } };
 
@@ -35,6 +38,13 @@ const STATUS_TONE: Record<string, string> = {
   returned: "bg-surface-sunken text-muted",
 };
 
+const RETURN_STATUS_LABEL_FA: Record<string, string> = {
+  requested: "درخواست شما در حال بررسی است.",
+  approved: "درخواست شما تأیید شد.",
+  rejected: "درخواست شما رد شد.",
+  completed: "این سفارش مرجوع و مبلغ آن بازگردانده شد.",
+};
+
 export default async function OrderPage({ params, searchParams }: PageProps) {
   const { id } = await params;
   const { pointsEarned, newBadges } = await searchParams;
@@ -48,6 +58,9 @@ export default async function OrderPage({ params, searchParams }: PageProps) {
   const lines = await db.select().from(orderLines).where(eq(orderLines.orderId, id));
   const paymentAttempts = await db.select().from(payments).where(eq(payments.orderId, id));
   const latestPayment = paymentAttempts[paymentAttempts.length - 1];
+
+  const returnRequest = await getReturnRequestForOrder(order.id);
+  const returnEligibility = checkReturnEligibility(order, returnRequest?.resolvedAt == null && returnRequest !== null);
 
   const unlockedBadges = (newBadges ?? "")
     .split(",")
@@ -159,6 +172,19 @@ export default async function OrderPage({ params, searchParams }: PageProps) {
             لغو سفارش
           </button>
         </form>
+      )}
+
+      {returnRequest ? (
+        <div className="mb-4 rounded-lg border border-line bg-surface-sunken p-4 text-sm">
+          <p className="font-medium">{RETURN_STATUS_LABEL_FA[returnRequest.status] ?? returnRequest.status}</p>
+          {returnRequest.resolutionNote && <p className="mt-1 text-muted">{returnRequest.resolutionNote}</p>}
+        </div>
+      ) : (
+        returnEligibility.eligible && (
+          <div className="mb-4">
+            <ReturnRequestForm orderId={order.id} />
+          </div>
+        )
       )}
 
       {latestPayment?.status === "failed" && latestPayment.failureReason && (

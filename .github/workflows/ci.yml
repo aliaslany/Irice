@@ -28,6 +28,7 @@ jobs:
       # A fixed, committed-to-a-public-repo secret is fine here: this is a
       # throwaway database that lives for the duration of one CI run.
       SESSION_SECRET: ci0000000000000000000000000000000000000000000000000000000000
+      ADMIN_TOKEN: ci-admin-token-0000000000000000
       SITE_URL: http://127.0.0.1:3000
       # Exposes GET /api/dev/last-otp so the e2e test can log in without a
       # real SMS provider. Never set this outside CI/local dev — see the

@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { loadEnv, resetEnvCache } from "./config";
 
-const BASE_ENV = { DATABASE_URL: "postgres://localhost:5432/irice" };
+const BASE_ENV = {
+  DATABASE_URL: "postgres://localhost:5432/irice",
+  ADMIN_TOKEN: "a".repeat(16),
+};
 
 describe("loadEnv()", () => {
   afterEach(() => {
@@ -56,6 +59,18 @@ describe("loadEnv()", () => {
       ALLOW_DEV_OTP_PEEK: "true",
     } as unknown as NodeJS.ProcessEnv);
     expect(env.ALLOW_DEV_OTP_PEEK).toBe(true);
+  });
+
+  it("requires ADMIN_TOKEN, with no dev fallback, in every environment", () => {
+    expect(() => loadEnv({ DATABASE_URL: BASE_ENV.DATABASE_URL } as unknown as NodeJS.ProcessEnv)).toThrow(
+      /ADMIN_TOKEN/,
+    );
+  });
+
+  it("leaves ENAMAD_ID/ENAMAD_CODE unset by default — no fake trust badge without real registration", () => {
+    const env = loadEnv(BASE_ENV as unknown as NodeJS.ProcessEnv);
+    expect(env.ENAMAD_ID).toBeUndefined();
+    expect(env.ENAMAD_CODE).toBeUndefined();
   });
 
   it("caches the result across calls", () => {

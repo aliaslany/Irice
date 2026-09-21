@@ -2,13 +2,15 @@
 
 Mill-direct Iranian rice, sold by the kilogram with every bag traceable to its lot.
 
-Phases 0–2 of [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the domain
+Phases 0–3 of [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the domain
 foundation (Variety → Lot → SKU, the globals layer, pricing and FEFO), the
-public catalog (variety pages, the lot passport, the SEO surface), and now a
-full commerce and gamification layer — cart, phone-OTP login, weight-based
+public catalog (variety pages, the lot passport, the SEO surface), a full
+commerce and gamification layer — cart, phone-OTP login, weight-based
 shipping, a checkout that reserves stock and takes payment, and a **Rice
 Passport**: variety stamps, provenance badges, purchase streaks, loyalty
-tiers, and redeemable points.
+tiers, and redeemable points — and the trust surface: a 10-day return flow,
+verified-purchase reviews, lab certificates, a price-history chart on every
+lot, and a minimal token-gated admin surface to operate all three.
 
 - [docs/MARKET-REVIEW.md](docs/MARKET-REVIEW.md) — Iranian and international sellers, and where the gap is
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the design this implements
@@ -17,12 +19,18 @@ tiers, and redeemable points.
 
 ```bash
 pnpm install
-cp .env.example .env      # then set DATABASE_URL; SESSION_SECRET gets a random
-                          # dev value automatically if you leave it blank
+cp .env.example .env      # then set DATABASE_URL and ADMIN_TOKEN; SESSION_SECRET
+                          # gets a random dev value automatically if left blank
 pnpm db:migrate
 pnpm db:seed              # realistic varieties and lots to develop against
 pnpm dev                  # http://localhost:3000
 ```
+
+`ADMIN_TOKEN` gates `/admin/*` (returns, certificates, fulfilment) — see
+`modules/admin/auth.ts` for why it's one shared token rather than real
+accounts. `ENAMAD_ID`/`ENAMAD_CODE` stay blank until the business has
+actually registered at enamad.ir; until then the footer shows no trust
+badge at all, never a placeholder.
 
 The seed deliberately includes two lots of طارم هاشمی from different harvest
 years. That is the case FEFO ordering and the freshness badge exist for, and a
@@ -39,13 +47,14 @@ comment in `src/globals/config.ts`.
 | Route | What it is |
 |---|---|
 | `/` | Variety index: price-from and freshness per variety |
-| `/rice/[slug]` | Variety page — sellable lots in FEFO order, each pack size priced, with effective rial/kg |
-| `/lot/[code]` | **Lot passport**: the QR target. Origin, mill, harvest year, grade, lab certificates, full price history |
+| `/rice/[slug]` | Variety page — sellable lots in FEFO order, each pack size priced, with effective rial/kg, plus verified-purchase reviews |
+| `/lot/[code]` | **Lot passport**: the QR target. Origin, mill, harvest year, grade, lab certificates, a price-history chart |
 | `/sitemap.xml`, `/robots.txt` | Includes every lot passport — the traceability claim is verifiable from outside |
 | `/cart`, `/checkout` | Cart with a free-shipping progress bar; checkout with inline OTP login, address, and loyalty-points redemption |
 | `/pay/fake/[authority]` | The fake payment gateway used whenever `ZARINPAL_MERCHANT_ID` is unset (the default) — see modules/payments |
-| `/orders/[id]` | Order status, with a badge-unlock celebration right after a first successful payment |
+| `/orders/[id]` | Order status, a badge-unlock celebration after a first payment, and a return request once the order is fulfilled |
 | `/account` | **The Rice Passport**: points balance, loyalty tier with a progress bar, purchase streak, variety stamps, and the full badge grid |
+| `/admin/*` | Token-gated operator surface: approve/reject returns, attach lab certificates, mark orders fulfilled — see `modules/admin/auth.ts` |
 
 ## The four rules
 
@@ -129,8 +138,9 @@ that file.
 `scripts/verify-constraints.sql` is worth knowing about: it asserts that the
 database itself refuses a Gregorian harvest year, a reservation larger than
 stock, a zero price, an unexplained stock movement, a replayed sale, a
-discount exceeding its own order, and a duplicate badge unlock. CI runs it on
-every push.
+discount exceeding its own order, a duplicate badge unlock, a rating outside
+1–5, a second review from the same customer on the same variety, and a
+negative refund. CI runs it on every push.
 
 `pnpm test:e2e` (`scripts/e2e-checkout.mjs`) needs a server already running
 (`pnpm build && pnpm start`) with `ALLOW_DEV_OTP_PEEK=true` and a seeded
@@ -164,3 +174,9 @@ surfaced against a real built server in a real browser — see
   (`getCurrentCustomer`, `getCartSummary` in `src/app/lib/session.ts`) is
   read-only, by construction, so an anonymous page view never creates a
   database row.
+- **Never write a runtime upload under `public/`.** `next start` serves
+  `public/` from a static-asset list resolved at boot, so a file written
+  there while the server is already running 404s until the next restart —
+  reproduced by hand once, see `docs/ARCHITECTURE.md §10`. Certificate
+  uploads live in `var/certificates/` and are served through an explicit
+  route handler that reads the file fresh on every request instead.

@@ -43,6 +43,31 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+
+  /**
+   * The whole admin surface (approving a return, uploading a lab
+   * certificate) is gated behind this one shared token, not real per-person
+   * accounts or roles — see modules/admin/auth.ts. Required with no
+   * fallback, unlike SESSION_SECRET: an auto-generated customer session
+   * secret only costs a forced re-login on restart, but an auto-generated
+   * admin credential nobody can read is either a lock nobody can open or,
+   * worse, a predictable one if the "random" source is ever weak. Set a
+   * real value in `.env`, even in dev.
+   */
+  ADMIN_TOKEN: z.string().min(16),
+
+  /**
+   * eNamad ("نماد اعتماد الکترونیکی") is Iran's government e-commerce trust
+   * seal — a real accreditation issued only after registering the business
+   * at enamad.ir with actual company/tax documents. There is no
+   * placeholder or sandbox id to develop against, and fabricating one would
+   * be fraud, not a stub. Both fields stay unset (the footer renders no
+   * badge at all — see components/EnamadBadge.tsx) until the business has
+   * gone through that real registration and been issued a real id/code
+   * pair from its enamad.ir dashboard. Set together or not at all.
+   */
+  ENAMAD_ID: z.string().min(1).optional(),
+  ENAMAD_CODE: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

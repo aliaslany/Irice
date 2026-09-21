@@ -7,6 +7,10 @@ import { grams } from "../../../globals/weight";
 import { toPersianDigits } from "../../../globals/digits";
 import { Field, HarvestBadge, LotCode, Price, Weight, gradeLabel } from "../../../components/primitives";
 import { addToCartAction } from "../../_actions/cart-actions";
+import { formatJalali } from "../../../globals/date";
+import { canReview, getVarietyReviewSummary, listVarietyReviews } from "../../../modules/reviews/reviews";
+import { getCurrentCustomer } from "../../lib/session";
+import { ReviewForm } from "./ReviewForm";
 
 export const revalidate = 300;
 
@@ -49,6 +53,13 @@ export default async function VarietyPage({ params }: PageProps) {
   const { variety, lots } = detail;
   const lead = lots[0];
 
+  const [reviewSummary, reviewList, customer] = await Promise.all([
+    getVarietyReviewSummary(variety.id),
+    listVarietyReviews(variety.id),
+    getCurrentCustomer(),
+  ]);
+  const canSubmitReview = customer ? await canReview(customer.id, variety.id) : false;
+
   /**
    * Product structured data. `offers` is priced in IRR because schema.org has
    * no Toman currency code — the page displays Toman, the markup states rial,
@@ -78,6 +89,17 @@ export default async function VarietyPage({ params }: PageProps) {
         url: `${SITE_URL}/lot/${lot.code}`,
       })),
     ),
+    // Google requires a real review count behind this — never a placeholder
+    // seed rating. Omitted entirely, not zeroed, when nobody has reviewed yet.
+    ...(reviewSummary.reviewCount > 0
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: reviewSummary.averageRating,
+            reviewCount: reviewSummary.reviewCount,
+          },
+        }
+      : {}),
   };
 
   return (
@@ -220,6 +242,46 @@ export default async function VarietyPage({ params }: PageProps) {
           </section>
         ))
       )}
+
+      <section className="mb-8 rounded-lg border border-line bg-surface p-6 shadow-[var(--shadow-card)]">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">نظر خریداران</h2>
+          {reviewSummary.reviewCount > 0 && (
+            <p className="text-sm text-muted">
+              <span className="tabular font-semibold text-ink">
+                {toPersianDigits(reviewSummary.averageRating!.toFixed(1))}
+              </span>{" "}
+              از ۵ · {toPersianDigits(String(reviewSummary.reviewCount))} نظر
+            </p>
+          )}
+        </div>
+
+        {canSubmitReview && (
+          <div className="mb-6">
+            <ReviewForm varietyId={variety.id} varietySlug={variety.slug} />
+          </div>
+        )}
+
+        {reviewList.length === 0 ? (
+          <p className="text-sm text-muted">هنوز نظری برای این محصول ثبت نشده است.</p>
+        ) : (
+          <ul className="space-y-4">
+            {reviewList.map((review) => (
+              <li key={review.id} className="border-b border-line pb-4 last:border-b-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span dir="ltr" className="text-accent" aria-label={`${toPersianDigits(String(review.rating))} از ۵ ستاره`}>
+                    {"★".repeat(review.rating)}
+                    <span className="text-line">{"★".repeat(5 - review.rating)}</span>
+                  </span>
+                  <span className="text-xs text-muted">{formatJalali(review.createdAt)}</span>
+                </div>
+                <p className="mt-1 text-sm font-medium">{review.reviewerName}</p>
+                {review.comment && <p className="mt-1 text-sm text-muted">{review.comment}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </>
   );
 }

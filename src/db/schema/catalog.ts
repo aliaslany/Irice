@@ -210,3 +210,5 @@ export type Lot = typeof lots.$inferSelect;
 export type NewLot = typeof lots.$inferInsert;
 export type Sku = typeof skus.$inferSelect;
 export type NewSku = typeof skus.$inferInsert;
+export type LotCertificate = typeof lotCertificates.$inferSelect;
+export type NewLotCertificate = typeof lotCertificates.$inferInsert;

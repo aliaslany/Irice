@@ -17,23 +17,13 @@ import {
   type Customer,
 } from "../../db/schema/index";
 import { toJalali } from "../../globals/date";
+import { isPostgresUniqueViolation } from "../../globals/errors";
 import { rial } from "../../globals/money";
 import { GRAMS_PER_KG } from "../../globals/weight";
 import { badgeDefinition, evaluateBadges, type BadgeDefinition } from "./badges";
 import { pointsForOrder } from "./points";
 import { computeStreak } from "./streak";
 import { computeTier } from "./tier";
-
-/** Postgres unique_violation — see the Postgres errcodes appendix. */
-const UNIQUE_VIOLATION = "23505";
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { code?: string }).code === UNIQUE_VIOLATION
-  );
-}
 
 function incrPointsBalance(points: number) {
   return sql`${customers.pointsBalanceCache} + ${points}`;
@@ -84,7 +74,7 @@ export async function refundPointsForOrder(tx: Transaction, orderId: string): Pr
       idempotencyKey: `refund:${orderId}`,
     });
   } catch (error) {
-    if (isUniqueViolation(error)) return; // already refunded — idempotent
+    if (isPostgresUniqueViolation(error)) return; // already refunded — idempotent
     throw error;
   }
   await tx

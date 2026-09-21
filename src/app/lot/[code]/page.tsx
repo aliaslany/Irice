@@ -6,6 +6,7 @@ import { formatJalali } from "../../../globals/date";
 import { formatPercentFa, toPersianDigits } from "../../../globals/digits";
 import { rial } from "../../../globals/money";
 import { Field, HarvestBadge, LotCode, Price, Weight, gradeLabel } from "../../../components/primitives";
+import { PriceHistoryChart } from "../../../components/PriceHistoryChart";
 
 /** A passport is near-immutable once the lot ships; cache it hard. */
 export const revalidate = 3600;
@@ -163,6 +164,17 @@ export default async function LotPassportPage({ params }: PageProps) {
                   {formatPercentFa(Math.abs(change))}
                 </span>
               </p>
+            )}
+            {priceHistory.length > 1 && (
+              <div className="mb-6">
+                <PriceHistoryChart
+                  points={priceHistory.map((entry) => ({
+                    id: entry.id,
+                    effectiveFromIso: entry.effectiveFrom.toISOString(),
+                    pricePerKgRial: entry.pricePerKgRial,
+                  }))}
+                />
+              </div>
             )}
             <ol className="space-y-2">
               {priceHistory.map((entry) => (

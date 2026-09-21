@@ -146,5 +146,34 @@ SELECT assert_rejected($$
   VALUES ('33333333-3333-3333-3333-333333333333', 'first_harvest')
 $$, 'customer_badges_customer_badge_unique');
 
+-- --- Phase 3: returns and reviews ---
+
+-- A star rating outside 1-5 must never reach the average shown to shoppers.
+SELECT assert_rejected($$
+  INSERT INTO reviews (variety_id, customer_id, order_id, rating)
+  VALUES ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333',
+          '55555555-5555-5555-5555-555555555555', 6)
+$$, 'reviews_rating_range');
+
+-- One review per customer per variety — a second submission is an edit
+-- request, never a second vote.
+INSERT INTO reviews (variety_id, customer_id, order_id, rating)
+  VALUES ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333',
+          '55555555-5555-5555-5555-555555555555', 5);
+SELECT assert_rejected($$
+  INSERT INTO reviews (variety_id, customer_id, order_id, rating)
+  VALUES ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333',
+          '55555555-5555-5555-5555-555555555555', 4)
+$$, 'reviews_customer_variety_unique');
+
+-- A refund can never be negative — that would be charging the customer more.
+INSERT INTO return_requests (order_id, customer_id, reason)
+  VALUES ('55555555-5555-5555-5555-555555555555', '33333333-3333-3333-3333-333333333333',
+          'بسته آسیب دیده بود');
+SELECT assert_rejected($$
+  UPDATE return_requests SET refund_rial = -1
+  WHERE order_id = '55555555-5555-5555-5555-555555555555'
+$$, 'return_requests_refund_non_negative');
+
 ROLLBACK;
 \echo 'schema invariants: all checks passed'

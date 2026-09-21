@@ -168,7 +168,7 @@ deviations made while building are recorded in §8._
 | 0 — Foundation ✅ | Repo, TS config, Postgres, Drizzle schema for Variety/Lot/Sku, globals layer, CI | `pnpm test` + migrations run green in CI |
 | 1 — Catalog & SEO ✅ | Variety pages, lot traceability page, content model, sitemap, structured data | A customer can find "برنج هاشمی" on Google and read the lot's harvest year |
 | 2 — Commerce core ✅ | Cart, phone OTP, weight-based shipping, ZarinPal checkout, gamification | A real order can be placed, paid, and shows up in the customer's Rice Passport |
-| 3 — Trust & local fit | eNamad, 10-day return flow, lab certificates, price history charts, reviews | Parity with the specialist competitors |
+| 3 — Trust & local fit ✅ | eNamad, 10-day return flow, lab certificates, price history charts, reviews | Parity with the specialist competitors |
 | 4 — Differentiators | Subscriptions, installment plans, per-kg price transparency, QR on the bag | The two things the market doesn't have |
 | 5 — Channels | Digikala/Snapp/Okala feed export, B2B/bulk tier, optional export storefront (en) | Marketplace listings generated from the same catalog |
 
@@ -296,3 +296,69 @@ from `undefined` to a real id on the next server render, but the client
 component instance stays mounted at the same tree position, so the state
 never updated and the submit button stayed permanently disabled. Fixed with
 a `useEffect` that syncs it explicitly.
+
+## 10. Phase 3: trust surface, a minimal admin stopgap, and two more bugs
+
+**No fake eNamad badge.** eNamad ("نماد اعتماد الکترونیکی") is a real Iranian
+government e-commerce accreditation, issued only after registering the
+business at enamad.ir with real company/tax documents — there is no
+sandbox id to develop against. `components/EnamadBadge.tsx` renders nothing
+until `ENAMAD_ID`/`ENAMAD_CODE` are set to a real issued pair (see
+`globals/config.ts`); it was never acceptable to ship a placeholder seal
+just to look complete.
+
+**A minimal, explicitly-labelled admin stopgap, not an admin product.**
+Approving a return and attaching a lab certificate both need a human
+gate, and there is no real RBAC/accounts system to hang that on yet. Rather
+than build one, `modules/admin/auth.ts` gates the whole admin surface
+behind one shared `ADMIN_TOKEN` compared with `timingSafeEqual`, reusing
+the customer session token's HMAC machinery with the fixed subject
+`"admin"`. Every admin page re-checks `getIsAdmin()` itself (no
+middleware), and every admin Server Action re-checks it again independently
+— a Server Action is a public endpoint in its own right, reachable however
+the page that happened to render its form got gated. This is deliberately
+the first thing phase 4 should replace.
+
+**The order lifecycle state machine, bypassed once.** `approveReturn`
+originally wrote `orders.status = "returned"` directly instead of going
+through `nextOrderStatus`, the one function §-documented as the sole place
+an order's status is allowed to change. Caught while writing this phase's
+tests, not by any existing one: a test that cancels an order between its
+return request and approval now asserts the approval is refused (no
+`cancelled -> returned` transition exists) rather than silently forcing the
+column.
+
+**A real, reproduced bug: SVG text-anchor flips under `dir="rtl"`.** The
+price-history chart (`components/PriceHistoryChart.tsx`) is built as a
+small LTR-time-axis SVG per the dataviz skill, but every number label
+rendered off the right edge of the chart, clipped. Cause: CSS `direction`
+is inherited into SVG text layout, and this storefront's `<html dir="rtl">`
+flips `text-anchor="end"` to anchor at the *left* and grow rightward instead
+of the LTR meaning the layout math assumed — pushing every right-aligned
+label past the chart's own edge. Fixed with one explicit `direction: "ltr"`
+style on the chart's root `<svg>`, and by using physical `left` (not the
+logical `insetInlineStart`) to position the hover tooltip, since both are
+placed using the chart's own LTR pixel space. Found by actually rendering
+the chart and looking at a screenshot, not by reasoning about the CSS —
+exactly the accessibility/render step the dataviz skill requires and exactly
+why it's a required step rather than a suggestion.
+
+**A real, reproduced bug: `next start` caches the `public/` directory at
+boot.** Certificate files are uploaded at runtime by an admin, long after
+the server started. Serving them from `public/uploads/...` (Next's normal
+static-asset convention) 404s until the *next* restart — verified by hand:
+upload, fetch → 404; restart, fetch the same file → 200. `public/` is meant
+for assets known at build/boot time, not ones written by a running process.
+Fixed by moving storage to `var/certificates/` (outside `public/`,
+gitignored) and serving it through an explicit Route Handler
+(`app/certificates/file/[filename]/route.ts`) that reads the file fresh
+from disk on every request — the same fix S3-backed storage would need
+anyway, which is the intended eventual replacement per
+`modules/certificates/storage.ts`'s own doc comment.
+
+**Reviews are gated by a re-derived purchase, never a client claim.**
+`canReview`/`submitReview` join `order_lines` to `orders.paidAt IS NOT
+NULL` for the specific customer and variety in question, the same
+verification shape the Rice Passport's variety stamps already use — a
+customer cannot review anything they didn't actually buy and pay for,
+regardless of what a request claims.

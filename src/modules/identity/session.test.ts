@@ -28,6 +28,18 @@ describe("createSessionToken() / verifySessionToken()", () => {
     expect(verifySessionToken(token, SECRET, wayLater)).toBeNull();
   });
 
+  it("honours a custom TTL, shorter than the default", () => {
+    const issued = new Date("2026-01-01T00:00:00Z");
+    const shortTtl = 60 * 60 * 8; // 8 hours — what the admin cookie uses
+    const token = createSessionToken("admin", SECRET, issued, shortTtl);
+
+    const stillValid = new Date(issued.getTime() + shortTtl * 1000 - 1000);
+    expect(verifySessionToken(token, SECRET, stillValid)).toEqual({ customerId: "admin" });
+
+    const justExpired = new Date(issued.getTime() + shortTtl * 1000 + 1000);
+    expect(verifySessionToken(token, SECRET, justExpired)).toBeNull();
+  });
+
   it("accepts a token right up to its expiry boundary", () => {
     const issued = new Date("2026-01-01T00:00:00Z");
     const token = createSessionToken("customer-1", SECRET, issued);

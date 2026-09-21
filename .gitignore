@@ -7,3 +7,5 @@ dist
 next-env.d.ts
 e2e-shots/
 tsconfig.tsbuildinfo
+# Uploaded certificate files — see modules/certificates/storage.ts.
+/var/certificates/

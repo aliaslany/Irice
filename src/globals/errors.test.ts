@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DomainError, isDomainError, toErrorResponse } from "./errors";
+import { DomainError, isDomainError, isPostgresUniqueViolation, toErrorResponse } from "./errors";
 
 describe("DomainError", () => {
   it("maps codes to HTTP statuses", () => {
@@ -41,5 +41,30 @@ describe("toErrorResponse()", () => {
   it("identifies domain errors", () => {
     expect(isDomainError(new DomainError("CONFLICT"))).toBe(true);
     expect(isDomainError(new Error("nope"))).toBe(false);
+  });
+});
+
+describe("isPostgresUniqueViolation()", () => {
+  it("recognises a plain error carrying the SQLSTATE code directly", () => {
+    expect(isPostgresUniqueViolation({ code: "23505" })).toBe(true);
+  });
+
+  it("recognises the code nested on .cause — the actual shape drizzle-orm throws", () => {
+    // This is the exact bug this function exists to fix: drizzle wraps the
+    // real postgres error in a DrizzleQueryError and moves it to .cause.
+    const drizzleShapedError = new Error("Failed query: insert into ...");
+    (drizzleShapedError as unknown as { cause: unknown }).cause = { code: "23505" };
+    expect(isPostgresUniqueViolation(drizzleShapedError)).toBe(true);
+  });
+
+  it("rejects an unrelated Postgres error code", () => {
+    expect(isPostgresUniqueViolation({ code: "23503" })).toBe(false); // foreign_key_violation
+  });
+
+  it("rejects non-error values without throwing", () => {
+    expect(isPostgresUniqueViolation(null)).toBe(false);
+    expect(isPostgresUniqueViolation(undefined)).toBe(false);
+    expect(isPostgresUniqueViolation("a string")).toBe(false);
+    expect(isPostgresUniqueViolation(new Error("plain error, no cause"))).toBe(false);
   });
 });

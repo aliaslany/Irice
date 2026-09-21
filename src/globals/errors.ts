@@ -100,3 +100,30 @@ export function toErrorResponse(error: unknown): { status: number; body: ErrorRe
     body: { error: { code: "INTERNAL", message: "خطای غیرمنتظره‌ای رخ داد." } },
   };
 }
+
+/** Postgres's own SQLSTATE for unique_violation. */
+const PG_UNIQUE_VIOLATION = "23505";
+
+/**
+ * Whether an error thrown by a Postgres query is a unique-constraint
+ * violation — the signal every "insert, or no-op if it already exists"
+ * idempotency check in this codebase relies on.
+ *
+ * drizzle-orm wraps the real `postgres` driver error in a `DrizzleQueryError`
+ * and moves the original onto `.cause`, so the SQLSTATE code is NOT on the
+ * error object callers actually catch — it's one level down. Checking only
+ * `error.code` (as this codebase did before this function existed) silently
+ * never matches, and an "already refunded, treat as success" path becomes an
+ * uncaught exception on its very first retry instead — caught by a later
+ * integration test that actually exercised the duplicate-insert path twice.
+ */
+export function isPostgresUniqueViolation(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const code = (error as { code?: unknown }).code;
+  if (code === PG_UNIQUE_VIOLATION) return true;
+  const cause = (error as { cause?: unknown }).cause;
+  if (typeof cause === "object" && cause !== null) {
+    return (cause as { code?: unknown }).code === PG_UNIQUE_VIOLATION;
+  }
+  return false;
+}

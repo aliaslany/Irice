@@ -106,6 +106,15 @@ export const orders = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     paidAt: timestamp("paid_at", { withTimezone: true }),
+    /**
+     * Set when an operator marks the order fulfilled (see admin/orders). This
+     * is a stand-in for a real "delivered" event from a carrier integration,
+     * which doesn't exist yet — see docs/ARCHITECTURE.md §7 on shipping. The
+     * 10-day return guarantee is legally "10 days after delivery"
+     * (docs/MARKET-REVIEW.md), and fulfilment date is the closest fact this
+     * system actually has to that.
+     */
+    fulfilledAt: timestamp("fulfilled_at", { withTimezone: true }),
   },
   (table) => [
     index("orders_customer_idx").on(table.customerId, table.createdAt),

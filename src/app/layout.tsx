@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { EnamadBadge } from "../components/EnamadBadge";
 import { HeaderClient } from "../components/HeaderClient";
 import { DEFAULT_LOCALE } from "../globals/i18n";
 import { htmlAttributes } from "../globals/rtl";
@@ -33,12 +34,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
 
         <footer className="mt-16 border-t border-line bg-surface">
-          <div className="mx-auto max-w-5xl px-4 py-8 text-sm text-muted">
-            <p>ضمانت بازگشت کالا تا ۱۰ روز پس از تحویل.</p>
-            <p className="mt-2">
-              روی هر کیسه یک کد محموله چاپ شده است؛ با آن می‌توانید خاستگاه، سال برداشت و گواهی
-              آزمایشگاهی همان محموله را ببینید.
-            </p>
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-6 px-4 py-8">
+            <div className="text-sm text-muted">
+              <p>ضمانت بازگشت کالا تا ۱۰ روز پس از تحویل.</p>
+              <p className="mt-2">
+                روی هر کیسه یک کد محموله چاپ شده است؛ با آن می‌توانید خاستگاه، سال برداشت و گواهی
+                آزمایشگاهی همان محموله را ببینید.
+              </p>
+            </div>
+            <EnamadBadge />
           </div>
         </footer>
       </body>

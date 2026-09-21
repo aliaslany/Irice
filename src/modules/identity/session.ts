@@ -20,8 +20,9 @@ export function createSessionToken(
   customerId: string,
   secret: string,
   now: Date = new Date(),
+  ttlSeconds: number = SESSION_TTL_SECONDS,
 ): string {
-  const expiresAtMs = now.getTime() + SESSION_TTL_SECONDS * 1000;
+  const expiresAtMs = now.getTime() + ttlSeconds * 1000;
   const payload = `${customerId}.${expiresAtMs}`;
   return `${payload}.${sign(payload, secret)}`;
 }

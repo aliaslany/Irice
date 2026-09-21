@@ -89,6 +89,20 @@ export const loyaltyLedgerReasonEnum = pgEnum("loyalty_ledger_reason", [
   "earn_purchase",
   "redeem_checkout",
   "refund_checkout",
+  "return_reversal", // points earned on an order that was later returned
   "expire",
   "adjustment", // manual, always requires a note — see the check constraint
+]);
+
+/**
+ * The 10-day return guarantee's lifecycle. `requested` -> `approved` ->
+ * `completed` (stock restocked, points reversed) or `requested` -> `rejected`.
+ * There is no automatic path: every request is a human decision, because a
+ * bag of rice can't be resold once opened and the operator needs to see it.
+ */
+export const returnStatusEnum = pgEnum("return_status", [
+  "requested",
+  "approved",
+  "rejected",
+  "completed",
 ]);
