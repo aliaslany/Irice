@@ -160,14 +160,14 @@ to get right on day one and expensive on day two hundred.
 
 ## 6. Delivery plan
 
-_Status: phase 0 and phase 1 are built. Sections below are the plan as written;
+_Status: phases 0–2 are built. Sections below are the plan as written;
 deviations made while building are recorded in §8._
 
 | Phase | Scope | Done when |
 |---|---|---|
 | 0 — Foundation ✅ | Repo, TS config, Postgres, Drizzle schema for Variety/Lot/Sku, globals layer, CI | `pnpm test` + migrations run green in CI |
 | 1 — Catalog & SEO ✅ | Variety pages, lot traceability page, content model, sitemap, structured data | A customer can find "برنج هاشمی" on Google and read the lot's harvest year |
-| 2 — Commerce core | Cart, phone OTP, weight-based shipping, ZarinPal checkout, order emails/SMS | First real order ships |
+| 2 — Commerce core ✅ | Cart, phone OTP, weight-based shipping, ZarinPal checkout, gamification | A real order can be placed, paid, and shows up in the customer's Rice Passport |
 | 3 — Trust & local fit | eNamad, 10-day return flow, lab certificates, price history charts, reviews | Parity with the specialist competitors |
 | 4 — Differentiators | Subscriptions, installment plans, per-kg price transparency, QR on the bag | The two things the market doesn't have |
 | 5 — Channels | Digikala/Snapp/Okala feed export, B2B/bulk tier, optional export storefront (en) | Marketplace listings generated from the same catalog |
@@ -212,3 +212,87 @@ filters to `active` lots with free stock. `getLotPassport` does not: someone
 holding a bag from a depleted — or recalled — lot still has the right to read
 its provenance. That is the promise the QR code makes. Only the *sale* of a lot
 is gated by status.
+
+**Order/payment SMS was descoped from phase 2.** The delivery-plan table's
+"order emails/SMS" line didn't ship — Kavenegar's OTP template is wired up
+(see identity/sms.ts) but no order-confirmation notification was built. Not
+a hidden gap: it's next on the list once phase 3 needs a real notification
+channel anyway (return status, fulfilment updates).
+
+## 9. Phase 2: commerce, gamification, and three bugs no unit test would have caught
+
+**The gamification design.** The Rice Passport reuses the lot passport's own
+metaphor, literalised as a customer-facing collectible: a stamp per variety
+tried, a badge per origin province, a Jalali-month purchase streak, a
+cumulative-kg loyalty tier, and points earned/redeemable at checkout. It is
+built on the exact pattern the stock ledger already established — an
+append-only truth table (`loyalty_ledger`, `customer_badges`) with a cache
+column beside it (`customers.points_balance_cache`,
+`total_kg_purchased_cache`) recomputed from real order history after every
+paid order, never incremented speculatively. `evaluateBadges` is a pure
+function over that history and is provably monotonic (a test asserts a
+strictly larger history never loses a badge already unlocked), which is what
+makes "insert only the newly-earned codes" safe to run on every payment,
+including a retried one.
+
+**Points are reserved at checkout, not at payment.** Symmetric with stock:
+redemption debits the ledger the moment an order is placed (`redeem_checkout`),
+and if that order's hold later expires or is cancelled without paying, a
+`refund_checkout` entry reverses it — the same "reserve now, consume or
+release later" shape `stock_reservations` uses for grams.
+
+**A migration-generation bug, twice.** Drizzle-kit's generated SQL for
+changing an enum's value set (cast the column to `text`, drop the old type,
+recreate it, cast back) leaves a pre-existing CHECK constraint on that column
+referencing the old enum type in its stored expression, and Postgres rejects
+the intermediate `text` cast against it. Hit once removing values from
+`stock_movement_reason` in this phase's own schema work; hand-fixed both
+times by dropping the constraint before the swap and recreating it identically
+after. Worth knowing before the next enum edit.
+
+**In-memory module state does not reliably work across Next.js's bundling.**
+Two separate features broke this way before anything reached a browser test:
+a dev-only OTP-peek endpoint (a `Map` written by a Server Action, read by a
+Route Handler) and the fake payment gateway's chosen outcome (same shape:
+written by one route type, read by another). Next bundles Server Actions and
+Route Handlers into separate chunks; a module-level `Map` gets a separate
+instance per chunk, so a write in one is invisible to a read in the other —
+silently, with no error, just an eternally-empty lookup. Both were fixed by
+moving the state into the database (`otp_codes.dev_plaintext_code`,
+`fake_payment_outcomes`) instead of process memory. **Neither bug was caught
+by the 226 unit and integration tests** — they only run inside one Node
+process, where a plain Map has no such split. Only the end-to-end test driving
+a real built-and-started server against a real browser (`pnpm test:e2e`)
+caught them, which is the whole reason that test exists and is wired into CI
+rather than being a one-off manual check.
+
+**A real correctness bug: an attempt counter erased by its own rejection.**
+`verifyOtp`'s wrong-code path incremented `otp_codes.attempts` and then threw
+a `DomainError` — from inside the same `db.transaction()` callback. Throwing
+inside a transaction rolls back everything the callback did, including the
+very increment meant to survive the rejection, so the attempt limit could
+never actually trigger. Fixed by having the transaction always commit
+(returning an outcome value) and throwing from the caller, outside any
+transaction. A test asserts the lockout now fires after
+`OTP_MAX_ATTEMPTS` real wrong guesses, not just that one guess increments a
+counter in isolation.
+
+**A cookie edge case specific to the fake payment gateway, not the real one.**
+The fake gateway's buttons were originally `<form action={serverAction}>`
+elements whose action called `redirect()` into `/pay/callback`, which itself
+redirects into `/orders/[id]` — a POST that triggers a same-app redirect
+chain. Chromium's SameSite=Lax cookie policy has a real, reproduced-with-curl
+edge case there: cookies were dropped specifically on the final hop, landing
+the customer on their own paid order page logged out. Fixed by making the
+fake gateway's buttons plain GET links to a route that records the outcome
+and redirects, matching the shape the *real* ZarinPal flow already has (an
+external site issuing a plain GET redirect to `/pay/callback`) — the real
+flow was never at risk; only the local simulation of it was.
+
+**React state derived from a prop needs an explicit sync.**
+`CheckoutForm`'s `useState(defaultAddressId ?? "")` only reads that initial
+value on mount. Adding a customer's *first* address flips `defaultAddressId`
+from `undefined` to a real id on the next server render, but the client
+component instance stays mounted at the same tree position, so the state
+never updated and the submit button stayed permanently disabled. Fixed with
+a `useEffect` that syncs it explicitly.

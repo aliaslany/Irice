@@ -2,11 +2,13 @@
 
 Mill-direct Iranian rice, sold by the kilogram with every bag traceable to its lot.
 
-Phases 0–1 of [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the domain
-foundation (the Variety → Lot → SKU schema, the globals layer, and the pricing
-and FEFO modules it serves) plus the public catalog — variety pages, the lot
-traceability page behind the QR code on the bag, and the SEO surface. No cart or
-checkout yet; that is phase 2.
+Phases 0–2 of [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the domain
+foundation (Variety → Lot → SKU, the globals layer, pricing and FEFO), the
+public catalog (variety pages, the lot passport, the SEO surface), and now a
+full commerce and gamification layer — cart, phone-OTP login, weight-based
+shipping, a checkout that reserves stock and takes payment, and a **Rice
+Passport**: variety stamps, provenance badges, purchase streaks, loyalty
+tiers, and redeemable points.
 
 - [docs/MARKET-REVIEW.md](docs/MARKET-REVIEW.md) — Iranian and international sellers, and where the gap is
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the design this implements
@@ -15,7 +17,8 @@ checkout yet; that is phase 2.
 
 ```bash
 pnpm install
-cp .env.example .env      # then set DATABASE_URL
+cp .env.example .env      # then set DATABASE_URL; SESSION_SECRET gets a random
+                          # dev value automatically if you leave it blank
 pnpm db:migrate
 pnpm db:seed              # realistic varieties and lots to develop against
 pnpm dev                  # http://localhost:3000
@@ -25,6 +28,12 @@ The seed deliberately includes two lots of طارم هاشمی from different ha
 years. That is the case FEFO ordering and the freshness badge exist for, and a
 single-lot fixture would never exercise it.
 
+To actually log in without a real SMS provider, set `ALLOW_DEV_OTP_PEEK=true`
+in `.env` — it exposes `GET /api/dev/last-otp?mobile=...` so a dev script (or
+`pnpm test:e2e`) can read the code back instead of watching server logs.
+**Never set this on anything a real customer can reach** — see the flag's
+comment in `src/globals/config.ts`.
+
 ## Pages
 
 | Route | What it is |
@@ -33,6 +42,10 @@ single-lot fixture would never exercise it.
 | `/rice/[slug]` | Variety page — sellable lots in FEFO order, each pack size priced, with effective rial/kg |
 | `/lot/[code]` | **Lot passport**: the QR target. Origin, mill, harvest year, grade, lab certificates, full price history |
 | `/sitemap.xml`, `/robots.txt` | Includes every lot passport — the traceability claim is verifiable from outside |
+| `/cart`, `/checkout` | Cart with a free-shipping progress bar; checkout with inline OTP login, address, and loyalty-points redemption |
+| `/pay/fake/[authority]` | The fake payment gateway used whenever `ZARINPAL_MERCHANT_ID` is unset (the default) — see modules/payments |
+| `/orders/[id]` | Order status, with a badge-unlock celebration right after a first successful payment |
+| `/account` | **The Rice Passport**: points balance, loyalty tier with a progress bar, purchase streak, variety stamps, and the full badge grid |
 
 ## The four rules
 
@@ -75,12 +88,38 @@ Consequences worth knowing before you extend it:
 - SKU prices are **derived**, never typed by hand. An operator changes
   `lots.price_per_kg_rial` and `modules/pricing` recalculates every pack size.
 
+## Commerce and gamification, briefly
+
+Checkout follows the same "reserve now, consume or release later" shape stock
+already used, applied twice more:
+
+- **Stock**: `placeOrder` allocates FEFO packs and creates a
+  `stock_reservations` row per (lot, cart line) — never touching `on_hand`.
+  Payment success converts a reservation into a `sale` stock_movement
+  (`on_hand` finally decreases); failure or expiry releases it.
+- **Loyalty points**: redemption debits `loyalty_ledger` at the *same moment*
+  the order is placed, not at payment. If the order never converts, a
+  `refund_checkout` entry reverses it. Points are only *earned* once payment
+  verifies.
+- **Badges**: `evaluateBadges` (modules/loyalty/badges.ts) is a pure function
+  over a customer's whole paid-order history — it is provably monotonic, so
+  running it again after every payment (including a retried one) only ever
+  adds newly-qualifying badge codes to `customer_badges`, never revokes one.
+
+Payment verification (`modules/checkout/checkout.ts`) is the part built with
+the most care: it's idempotent against a replayed gateway callback, it never
+holds a database transaction open across the gateway's own HTTP call, and
+`docs/ARCHITECTURE.md §9` documents three real bugs that surfaced only when
+this was actually run end-to-end in a browser — worth reading before touching
+that file.
+
 ## Scripts
 
 | Command | What it does |
 |---|---|
 | `pnpm dev` / `pnpm build` / `pnpm start` | Next.js storefront |
-| `pnpm test` | Unit tests (vitest) |
+| `pnpm test` | Unit + integration tests (vitest; needs `DATABASE_URL`) |
+| `pnpm test:e2e` | Full checkout journey in a real browser against a running build — see below |
 | `pnpm db:seed` | Realistic development data |
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm db:generate` | Generate SQL migrations from the schema |
@@ -89,8 +128,19 @@ Consequences worth knowing before you extend it:
 
 `scripts/verify-constraints.sql` is worth knowing about: it asserts that the
 database itself refuses a Gregorian harvest year, a reservation larger than
-stock, a zero price, an unexplained stock movement, and a replayed sale. CI runs
-it on every push.
+stock, a zero price, an unexplained stock movement, a replayed sale, a
+discount exceeding its own order, and a duplicate badge unlock. CI runs it on
+every push.
+
+`pnpm test:e2e` (`scripts/e2e-checkout.mjs`) needs a server already running
+(`pnpm build && pnpm start`) with `ALLOW_DEV_OTP_PEEK=true` and a seeded
+database — it drives the *entire* journey (cart → OTP login → address →
+payment → badge celebration → Rice Passport → a second order redeeming
+points) with Playwright. It exists because three real bugs during phase 2
+(a Next.js bundling gotcha, a browser cookie edge case, a React stale-state
+bug) were invisible to 226 passing unit and integration tests and only
+surfaced against a real built server in a real browser — see
+`docs/ARCHITECTURE.md §9`.
 
 ## Conventions worth knowing before you add code
 
@@ -105,3 +155,12 @@ it on every push.
   with the Persian decimal separator rather than `۸.۶۰٪` with a Latin dot.
 - **Design tokens are the Tailwind theme.** Edit
   `src/globals/styles/globals.css`; there is no `tailwind.config.js`.
+- **No module-level in-memory state that a Server Action writes and a Route
+  Handler reads, or vice versa.** Next bundles them separately; a plain `Map`
+  gets a silent, separate instance per bundle. Put shared state in the
+  database — see `otp_codes.dev_plaintext_code` and `fake_payment_outcomes`
+  for the two places this actually bit us.
+- **Only a Server Action or Route Handler may set a cookie.** A page render
+  (`getCurrentCustomer`, `getCartSummary` in `src/app/lib/session.ts`) is
+  read-only, by construction, so an anonymous page view never creates a
+  database row.

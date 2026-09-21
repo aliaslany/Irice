@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { DomainError } from "../../globals/errors";
 import { grams, kg } from "../../globals/weight";
-import { allocateFefo, availableG, isAllocatable, preferredLot } from "./allocate";
+import {
+  allocateFefo,
+  allocatePacksFefo,
+  availableG,
+  availablePacks,
+  isAllocatable,
+  preferredLot,
+} from "./allocate";
 import type { AllocatableLot } from "./allocate";
 
 function lot(overrides: Partial<AllocatableLot> & { id: string }): AllocatableLot {
@@ -122,5 +129,65 @@ describe("preferredLot()", () => {
 
   it("returns null when no lot can fill the pack", () => {
     expect(preferredLot([lot({ id: "a", quantityOnHandG: kg(2) })], kg(20))).toBeNull();
+  });
+});
+
+describe("availablePacks()", () => {
+  it("floors to whole packs, never promising a partial bag", () => {
+    expect(availablePacks(lot({ id: "a", quantityOnHandG: kg(24) }), kg(10))).toBe(2);
+  });
+
+  it("is zero for a non-allocatable lot", () => {
+    expect(availablePacks(lot({ id: "a", status: "quarantined" }), kg(10))).toBe(0);
+  });
+});
+
+describe("allocatePacksFefo()", () => {
+  it("fills the order from a single oldest lot when it has enough", () => {
+    const lots = [
+      lot({ id: "old", harvestYear: 1403, quantityOnHandG: kg(50) }),
+      lot({ id: "new", harvestYear: 1405, quantityOnHandG: kg(50) }),
+    ];
+    expect(allocatePacksFefo(lots, kg(10), 3)).toEqual([{ lotId: "old", packs: 3 }]);
+  });
+
+  it("splits across lots, oldest first, when one cannot cover it alone", () => {
+    const lots = [
+      lot({ id: "old", harvestYear: 1403, quantityOnHandG: kg(25) }), // 2 whole 10kg packs
+      lot({ id: "new", harvestYear: 1405, quantityOnHandG: kg(50) }),
+    ];
+    expect(allocatePacksFefo(lots, kg(10), 5)).toEqual([
+      { lotId: "old", packs: 2 },
+      { lotId: "new", packs: 3 },
+    ]);
+  });
+
+  it("never promises a partial pack even if the grams exist", () => {
+    // 24kg total is not enough for 3 whole 10kg packs, even though 3*8=24.
+    const lots = [lot({ id: "a", quantityOnHandG: kg(24) })];
+    expect(() => allocatePacksFefo(lots, kg(10), 3)).toThrow(DomainError);
+  });
+
+  it("throws OUT_OF_STOCK with the shortfall reported in packs", () => {
+    const lots = [lot({ id: "a", quantityOnHandG: kg(15) })]; // 1 pack of 10kg
+    try {
+      allocatePacksFefo(lots, kg(10), 4);
+      expect.unreachable();
+    } catch (error) {
+      expect((error as DomainError).code).toBe("OUT_OF_STOCK");
+      expect((error as DomainError).detail).toMatchObject({ packsNeeded: 4, availablePacks: 1 });
+    }
+  });
+
+  it("rejects a non-positive or fractional pack count", () => {
+    const lots = [lot({ id: "a" })];
+    expect(() => allocatePacksFefo(lots, kg(10), 0)).toThrow(DomainError);
+    expect(() => allocatePacksFefo(lots, kg(10), 1.5)).toThrow(DomainError);
+  });
+
+  it("respects reservations already held by other carts", () => {
+    // 12kg on hand, 5kg reserved -> 7kg free -> zero whole 10kg packs.
+    const lots = [lot({ id: "a", quantityOnHandG: kg(12), quantityReservedG: kg(5) })];
+    expect(() => allocatePacksFefo(lots, kg(10), 1)).toThrow(DomainError);
   });
 });

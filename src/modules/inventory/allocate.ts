@@ -91,3 +91,67 @@ export function preferredLot(
       .sort((a, b) => a.harvestYear - b.harvestYear || a.id.localeCompare(b.id))[0] ?? null
   );
 }
+
+export interface PackAllocation {
+  lotId: string;
+  /** Number of whole packs cut from this lot. */
+  packs: number;
+}
+
+/** Whole packs of `packSizeG` a lot can still supply without a partial bag. */
+export function availablePacks(lot: AllocatableLot, packSizeG: Grams): number {
+  if (!isAllocatable(lot)) return 0;
+  return Math.floor(availableG(lot) / packSizeG);
+}
+
+/**
+ * Allocate a number of whole packs across lots, oldest harvest first — the
+ * discrete, checkout-facing sibling of {@link allocateFefo}.
+ *
+ * SKUs are sold in fixed pack sizes, so a cart line for "5 packs of 10kg"
+ * cannot be satisfied by 49.99kg spread thinly across three lots; it needs 5
+ * whole 10kg cuts, which may still mean splitting across lots (3 packs from
+ * the older lot, 2 from the newer) when no single lot has enough. That split
+ * becomes two order_lines rows — see docs/ARCHITECTURE.md's order_lines
+ * comment — which is exactly what lets each shipped bag point at the lot
+ * passport it actually came from.
+ *
+ * Throws OUT_OF_STOCK rather than allocating a partial order, for the same
+ * reason allocateFefo does: a half-filled line is worse than an honest
+ * "ناموجود" at add-to-cart time.
+ */
+export function allocatePacksFefo(
+  lots: readonly AllocatableLot[],
+  packSizeG: Grams,
+  packsNeeded: number,
+): PackAllocation[] {
+  if (!Number.isInteger(packsNeeded) || packsNeeded < 1) {
+    throw new DomainError("VALIDATION", "packsNeeded must be a positive integer", {
+      packsNeeded,
+    });
+  }
+
+  const candidates = lots
+    .map((lot) => ({ lot, packs: availablePacks(lot, packSizeG) }))
+    .filter((c) => c.packs > 0)
+    .sort((a, b) => a.lot.harvestYear - b.lot.harvestYear || a.lot.id.localeCompare(b.lot.id));
+
+  const totalAvailablePacks = candidates.reduce((sum, c) => sum + c.packs, 0);
+  if (totalAvailablePacks < packsNeeded) {
+    throw new DomainError("OUT_OF_STOCK", "insufficient whole packs across lots", {
+      packSizeG,
+      packsNeeded,
+      availablePacks: totalAvailablePacks,
+    });
+  }
+
+  const allocations: PackAllocation[] = [];
+  let remaining = packsNeeded;
+  for (const { lot, packs } of candidates) {
+    if (remaining === 0) break;
+    const take = Math.min(packs, remaining);
+    allocations.push({ lotId: lot.id, packs: take });
+    remaining -= take;
+  }
+  return allocations;
+}

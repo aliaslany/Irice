@@ -5,3 +5,5 @@ dist
 *.log
 .next
 next-env.d.ts
+e2e-shots/
+tsconfig.tsbuildinfo

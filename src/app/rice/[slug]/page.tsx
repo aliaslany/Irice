@@ -6,6 +6,7 @@ import { rial } from "../../../globals/money";
 import { grams } from "../../../globals/weight";
 import { toPersianDigits } from "../../../globals/digits";
 import { Field, HarvestBadge, LotCode, Price, Weight, gradeLabel } from "../../../components/primitives";
+import { addToCartAction } from "../../_actions/cart-actions";
 
 export const revalidate = 300;
 
@@ -101,6 +102,57 @@ export default async function VarietyPage({ params }: PageProps) {
         </div>
         {variety.summaryFa && <p className="mt-3 max-w-2xl text-muted">{variety.summaryFa}</p>}
       </header>
+
+      {lots.length > 0 && (
+        <section className="mb-8 rounded-lg border border-line bg-surface p-6 shadow-[var(--shadow-card)]">
+          <h2 className="mb-1 text-lg font-semibold">افزودن به سبد</h2>
+          <p className="mb-4 text-sm text-muted">
+            بسته‌بندی از قدیمی‌ترین محموله موجود ارسال می‌شود (
+            <a href={`/lot/${lots[0]!.lot.code}`} className="text-brand hover:underline">
+              مشاهده شناسنامه
+            </a>
+            ).
+          </p>
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {(() => {
+              // FEFO order matches modules/cart/queries.ts exactly: for each
+              // pack size, the price shown is the first (oldest) lot that
+              // actively sells it — the same lot checkout will actually cut
+              // this pack from if it's the one added.
+              const seen = new Set<number>();
+              return lots.flatMap(({ lot, skus }) =>
+                skus
+                  .filter((sku) => {
+                    if (seen.has(sku.packSizeG)) return false;
+                    seen.add(sku.packSizeG);
+                    return true;
+                  })
+                  .map((sku) => (
+                    <li key={sku.id} className="rounded-md border border-line bg-surface-sunken p-4 text-center">
+                      <div className="font-semibold">
+                        <Weight valueG={sku.packSizeG} />
+                      </div>
+                      <div className="mt-2 mb-3">
+                        <Price amountRial={sku.priceRial} className="font-bold text-brand-strong" />
+                      </div>
+                      <form action={addToCartAction}>
+                        <input type="hidden" name="varietyId" value={variety.id} />
+                        <input type="hidden" name="packSizeG" value={sku.packSizeG} />
+                        <input type="hidden" name="quantity" value={1} />
+                        <button
+                          type="submit"
+                          className="w-full rounded-md bg-brand px-3 py-2 text-sm font-semibold text-white transition hover:bg-brand-strong"
+                        >
+                          افزودن
+                        </button>
+                      </form>
+                    </li>
+                  )),
+              );
+            })()}
+          </ul>
+        </section>
+      )}
 
       {lots.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-6 text-danger">

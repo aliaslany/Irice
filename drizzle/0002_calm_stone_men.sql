@@ -1,0 +1,1 @@
+ALTER TABLE "otp_codes" ADD COLUMN "dev_plaintext_code" varchar(8);

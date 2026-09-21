@@ -90,5 +90,61 @@ SELECT assert_rejected($$
   DELETE FROM varieties WHERE slug = 'verify-tarom'
 $$, 'lots_variety_id_varieties_id_fk');
 
+-- --- Phase 2: commerce, identity, loyalty ---
+
+INSERT INTO customers (id, mobile)
+  VALUES ('33333333-3333-3333-3333-333333333333', '09120000099');
+
+-- An OTP code can be guessed at most 5 times.
+SELECT assert_rejected($$
+  INSERT INTO otp_codes (mobile, code_hash, attempts, expires_at)
+  VALUES ('09120000099', 'x', 6, now() + interval '2 minutes')
+$$, 'otp_codes_attempts_bounded');
+
+-- A cart line of zero or negative packs is a bug, not an empty line.
+INSERT INTO carts (id, cart_token) VALUES ('44444444-4444-4444-4444-444444444444', 'verify-cart');
+SELECT assert_rejected($$
+  INSERT INTO cart_items (cart_id, variety_id, pack_size_g, quantity)
+  VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 10000, 0)
+$$, 'cart_items_quantity_positive');
+
+-- A hold of zero or negative grams is a bug, not a no-op hold.
+INSERT INTO orders (id, order_number, customer_id, ship_recipient_name, ship_recipient_mobile,
+                    ship_province, ship_city, ship_line1, subtotal_rial, shipping_fee_rial,
+                    total_rial, total_weight_g)
+  VALUES ('55555555-5555-5555-5555-555555555555', 'IR-VERIFY', '33333333-3333-3333-3333-333333333333',
+          'گیرنده آزمایشی', '09120000099', 'گیلان', 'رشت', 'خیابان آزمایشی', 59300000, 230000,
+          59530000, 10000);
+SELECT assert_rejected($$
+  INSERT INTO stock_reservations (lot_id, quantity_g, order_id, expires_at, idempotency_key)
+  VALUES ('22222222-2222-2222-2222-222222222222', 0, '55555555-5555-5555-5555-555555555555',
+          now() + interval '20 minutes', 'verify-reservation')
+$$, 'stock_reservations_quantity_positive');
+
+-- A discount can never exceed what it's discounting.
+SELECT assert_rejected($$
+  UPDATE orders SET discount_rial = 99999999999 WHERE id = '55555555-5555-5555-5555-555555555555'
+$$, 'orders_discount_bounded');
+
+-- A points ledger entry of zero is a bug, and a manual adjustment without a
+-- reason is exactly the unaccountable balance change the append-only ledger
+-- exists to prevent.
+SELECT assert_rejected($$
+  INSERT INTO loyalty_ledger (customer_id, delta_points, reason, idempotency_key)
+  VALUES ('33333333-3333-3333-3333-333333333333', 0, 'earn_purchase', 'verify-zero-points')
+$$, 'loyalty_ledger_delta_non_zero');
+SELECT assert_rejected($$
+  INSERT INTO loyalty_ledger (customer_id, delta_points, reason, idempotency_key)
+  VALUES ('33333333-3333-3333-3333-333333333333', -100, 'adjustment', 'verify-unexplained-adjustment')
+$$, 'loyalty_ledger_adjustment_explained');
+
+-- The same badge can't unlock twice for one customer.
+INSERT INTO customer_badges (customer_id, badge_code)
+  VALUES ('33333333-3333-3333-3333-333333333333', 'first_harvest');
+SELECT assert_rejected($$
+  INSERT INTO customer_badges (customer_id, badge_code)
+  VALUES ('33333333-3333-3333-3333-333333333333', 'first_harvest')
+$$, 'customer_badges_customer_badge_unique');
+
 ROLLBACK;
 \echo 'schema invariants: all checks passed'

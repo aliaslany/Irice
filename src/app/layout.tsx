@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { HeaderClient } from "../components/HeaderClient";
 import { DEFAULT_LOCALE } from "../globals/i18n";
 import { htmlAttributes } from "../globals/rtl";
 import "./globals.css";
@@ -24,7 +25,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <a href="/" className="text-xl font-bold text-brand-strong">
               آیرایس
             </a>
-            <p className="text-sm text-muted">مستقیم از کارخانه، بدون واسطه</p>
+            <p className="hidden text-sm text-muted sm:block">مستقیم از کارخانه، بدون واسطه</p>
+            <HeaderClient />
           </div>
         </header>
 

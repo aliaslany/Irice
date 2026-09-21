@@ -25,6 +25,14 @@ jobs:
 
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/irice_test
+      # A fixed, committed-to-a-public-repo secret is fine here: this is a
+      # throwaway database that lives for the duration of one CI run.
+      SESSION_SECRET: ci0000000000000000000000000000000000000000000000000000000000
+      SITE_URL: http://127.0.0.1:3000
+      # Exposes GET /api/dev/last-otp so the e2e test can log in without a
+      # real SMS provider. Never set this outside CI/local dev — see the
+      # flag's own comment in globals/config.ts.
+      ALLOW_DEV_OTP_PEEK: "true"
 
     steps:
       - uses: actions/checkout@v4
@@ -94,3 +102,16 @@ jobs:
           [ "$code" = "404" ] || { echo "::error::unknown lot returned $code, expected 404"; exit 1; }
 
           echo "smoke test passed"
+
+      - name: Install Playwright's Chromium
+        run: npx playwright install --with-deps chromium
+
+      # Drives the whole checkout + gamification journey in a real browser
+      # against the server the smoke-test step already started: add to cart,
+      # OTP login, address, place order, pay, badge-unlock celebration, the
+      # Rice Passport, and a second order redeeming loyalty points. Two real
+      # bugs (a Next.js per-route bundling issue, and a browser cookie edge
+      # case on a POST-initiated redirect chain) only ever surfaced here —
+      # see docs/ARCHITECTURE.md §8 — never in a same-process test.
+      - name: End-to-end checkout test
+        run: pnpm test:e2e
