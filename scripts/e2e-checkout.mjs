@@ -38,6 +38,21 @@ page.on("console", (m) => {
   if (m.type() === "error") console.error("[console.error]", m.text());
 });
 
+/**
+ * Click an add-to-cart button and wait for its Server Action's POST to
+ * actually return. Navigating away any earlier aborts the response — and on
+ * a first add, that response is what carries the new cart cookie, so the
+ * item lands in a cart the browser never learns about. This raced and
+ * flaked in CI (a local experiment lost 15/15 adds with the old
+ * click-then-networkidle pattern, 0/15 with this).
+ */
+async function addToCart(form) {
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.status() < 400, { timeout: 10_000 }),
+    form.locator('button[type="submit"]').click(),
+  ]);
+}
+
 // 1. Home page loads, RTL, shows a variety.
 await page.goto(BASE, { waitUntil: "networkidle" });
 assert((await page.locator("html").getAttribute("dir")) === "rtl", "home is RTL");
@@ -48,9 +63,7 @@ await page.getByText("طارم هاشمی").first().click();
 await page.waitForLoadState("networkidle");
 assert(page.url().includes("/rice/"), "navigated to a variety page");
 
-const addForms = page.locator('form:has(input[name="packSizeG"][value="10000"])');
-await addForms.first().locator('button[type="submit"]').click();
-await page.waitForLoadState("networkidle");
+await addToCart(page.locator('form:has(input[name="packSizeG"][value="10000"])').first());
 await page.screenshot({ path: "./e2e-shots/01-added-to-cart.png", fullPage: true });
 
 // 3. Cart page shows the line and a nonzero subtotal.
@@ -124,8 +137,7 @@ await page.screenshot({ path: "./e2e-shots/07-passport.png", fullPage: true });
 
 // 9. A second, cheap purchase to exercise the loyalty-points redemption path end to end.
 await page.goto(`${BASE}/rice/hashemi`, { waitUntil: "networkidle" });
-await page.locator('form:has(input[name="packSizeG"][value="1000"])').first().locator('button[type="submit"]').click();
-await page.waitForLoadState("networkidle");
+await addToCart(page.locator('form:has(input[name="packSizeG"][value="1000"])').first());
 await page.goto(`${BASE}/checkout`, { waitUntil: "networkidle" });
 const redeemCheckbox = page.locator('input[type="checkbox"]').first();
 if (await redeemCheckbox.isVisible().catch(() => false)) {
