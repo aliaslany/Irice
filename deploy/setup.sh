@@ -44,7 +44,11 @@ if ! command -v node >/dev/null || [ "$(node -v | grep -oE '^v[0-9]+' | tr -d v)
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
   apt-get install -y -qq nodejs
 fi
-corepack enable >/dev/null 2>&1 || npm install -g pnpm >/dev/null
+# Pinned global install, not corepack: package.json has no packageManager
+# field, so corepack would fetch "latest" at first use (and can stop at an
+# interactive download prompt), per user, into a cache the hardened systemd
+# unit can't write to. pnpm 10 matches CI.
+command -v pnpm >/dev/null || npm install -g pnpm@10 >/dev/null
 
 # Caddy — automatic HTTPS with zero certbot/nginx config.
 if ! command -v caddy >/dev/null; then
