@@ -1,6 +1,6 @@
 {
   "name": "irice",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Mill-direct Iranian rice storefront (fa-IR, RTL): every bag traceable to its milling lot — origin, Jalali harvest year, lab certificates, price history — with ZarinPal checkout, phone-OTP login, and a loyalty 'Rice Passport'.",
   "keywords": [
