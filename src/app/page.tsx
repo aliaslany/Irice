@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { listVarietyCards } from "../modules/catalog/queries";
 import { HarvestBadge, Price } from "../components/primitives";
+import { JsonLd } from "../components/JsonLd";
+import { graphLd, OPEN_GRAPH_BASE, organizationLd, SITE_NAME_FA, websiteLd } from "../modules/seo/structured-data";
 
 /**
  * Catalog data changes when an operator edits a lot price, which is a
@@ -9,18 +11,37 @@ import { HarvestBadge, Price } from "../components/primitives";
  */
 export const revalidate = 300;
 
-export const metadata: Metadata = {
-  title: "خرید برنج ایرانی درجه یک، مستقیم از کارخانه",
-  description:
-    "انواع برنج ایرانی — هاشمی، طارم، دمسیاه، صدری — با شناسنامه محموله: خاستگاه، سال برداشت و قیمت شفاف هر کیلوگرم.",
-  alternates: { canonical: "/" },
-};
+const SITE_URL = process.env.SITE_URL ?? "https://irice.ir";
+
+/**
+ * The description names the varieties actually on sale, read from the
+ * catalog — a hand-written list drifts, and did: it once named صدری, which
+ * this store has never carried.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const names = (await listVarietyCards()).map(({ variety }) => variety.nameFa);
+  const listed = names.length > 0 ? `${names.join("، ")} — ` : "";
+  const description = `انواع برنج ایرانی — ${listed}با شناسنامه محموله: خاستگاه، سال برداشت و قیمت شفاف هر کیلوگرم.`;
+  const title = "خرید برنج ایرانی درجه یک، مستقیم از کارخانه";
+
+  return {
+    // `absolute`: the layout's "%s | آیرایس" template only applies to child
+    // segments, never to the page in the layout's own segment.
+    title: { absolute: `${title} | ${SITE_NAME_FA}` },
+    description,
+    keywords: names.flatMap((name) => [`برنج ${name}`, `خرید برنج ${name}`]),
+    alternates: { canonical: "/" },
+    openGraph: { ...OPEN_GRAPH_BASE, title, description, url: "/" },
+  };
+}
 
 export default async function HomePage() {
   const cards = await listVarietyCards();
 
   return (
     <>
+      <JsonLd data={graphLd([organizationLd(SITE_URL), websiteLd(SITE_URL)])} />
+
       <section className="mb-10">
         <h1 className="text-3xl font-bold">برنج ایرانی، با شناسنامه</h1>
         <p className="mt-3 max-w-2xl text-muted">

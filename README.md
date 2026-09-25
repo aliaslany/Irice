@@ -56,6 +56,33 @@ comment in `src/globals/config.ts`.
 | `/account` | **The Rice Passport**: points balance, loyalty tier with a progress bar, purchase streak, variety stamps, and the full badge grid |
 | `/admin/*` | Token-gated operator surface: approve/reject returns, attach lab certificates, mark orders fulfilled — see `modules/admin/auth.ts` |
 
+## SEO
+
+All structured data is built by pure, unit-tested functions in
+`src/modules/seo/structured-data.ts`. Pages only choose which builders to
+call, and nothing is stated in markup that the page itself doesn't show:
+
+- **Home**: `OnlineStore` + `WebSite` JSON-LD. The meta description lists
+  the varieties actually on sale, read from the catalog.
+- **Variety pages** (`/rice/[slug]`): `Product` with one IRR `Offer` per
+  pack size, the 10-day `MerchantReturnPolicy` (the same constant
+  `modules/returns` enforces), and `aggregateRating` + individual `Review`s
+  only once real verified-purchase reviews exist. Also `BreadcrumbList`,
+  per-variety keywords, and a visible long description + attribute list
+  (`varieties.description_fa`, `varieties.attributes`) — the product copy is
+  most of what a variety page can rank on.
+- **Lot passports**: `BreadcrumbList` (home → variety → lot); deliberately
+  no `Product`, so a passport never competes with its variety page.
+- **Site-wide**: canonical URLs, Open Graph + Twitter card, `fa_IR` locale,
+  theme color for both color schemes, a web manifest, and phone-number
+  auto-linking turned off (long Persian digit runs trigger it).
+- **Crawling**: `sitemap.xml` lists every variety and lot passport;
+  `robots.txt` disallows `/admin`, `/api/`, `/cart`, `/checkout`,
+  `/account`, `/orders/` and `/pay/` (all also `noindex`).
+
+JSON-LD is serialised with `<`, `>` and `&` escaped, so catalog text can
+never close its `<script>` tag early.
+
 ## The four rules
 
 Everything in `src/globals/` exists to enforce these. They are cheap on day one

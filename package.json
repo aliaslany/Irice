@@ -2,6 +2,29 @@
   "name": "irice",
   "version": "0.0.0",
   "private": true,
+  "description": "Mill-direct Iranian rice storefront (fa-IR, RTL): every bag traceable to its milling lot — origin, Jalali harvest year, lab certificates, price history — with ZarinPal checkout, phone-OTP login, and a loyalty 'Rice Passport'.",
+  "keywords": [
+    "ecommerce",
+    "nextjs",
+    "iran",
+    "persian",
+    "farsi",
+    "rtl",
+    "rice",
+    "traceability",
+    "jalali",
+    "zarinpal",
+    "drizzle-orm",
+    "postgresql",
+    "typescript",
+    "structured-data",
+    "seo"
+  ],
+  "homepage": "https://github.com/aliaslany/Irice#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aliaslany/Irice.git"
+  },
   "type": "module",
   "engines": {
     "node": ">=22"

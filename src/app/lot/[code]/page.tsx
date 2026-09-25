@@ -7,6 +7,10 @@ import { formatPercentFa, toPersianDigits } from "../../../globals/digits";
 import { rial } from "../../../globals/money";
 import { Field, HarvestBadge, LotCode, Price, Weight, gradeLabel } from "../../../components/primitives";
 import { PriceHistoryChart } from "../../../components/PriceHistoryChart";
+import { JsonLd } from "../../../components/JsonLd";
+import { breadcrumbLd, OPEN_GRAPH_BASE } from "../../../modules/seo/structured-data";
+
+const SITE_URL = process.env.SITE_URL ?? "https://irice.ir";
 
 /** A passport is near-immutable once the lot ships; cache it hard. */
 export const revalidate = 3600;
@@ -41,12 +45,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!passport) return { title: "محموله یافت نشد" };
 
   const { lot, variety } = passport;
+  const title = `شناسنامه محموله ${lot.code}`;
+  // Persian digits in the snippet too: a Latin "1405" in a Persian result
+  // reads as a foreign string to the people this page is written for.
+  const description = `${variety.nameFa} از ${lot.originCity}، ${lot.originProvince} — برداشت ${toPersianDigits(String(lot.harvestYear))}، درجه ${gradeLabel(lot.grade)}.`;
   return {
-    title: `شناسنامه محموله ${lot.code}`,
-    // Persian digits in the snippet too: a Latin "1405" in a Persian result
-    // reads as a foreign string to the people this page is written for.
-    description: `${variety.nameFa} از ${lot.originCity}، ${lot.originProvince} — برداشت ${toPersianDigits(String(lot.harvestYear))}، درجه ${gradeLabel(lot.grade)}.`,
+    title,
+    description,
+    keywords: [lot.code, `برنج ${variety.nameFa}`, `برنج ${lot.originCity}`, `برنج ${lot.originProvince}`],
     alternates: { canonical: `/lot/${lot.code}` },
+    openGraph: { ...OPEN_GRAPH_BASE, title, description, url: `/lot/${lot.code}` },
     // A passport is a reference page reached by QR, not a search landing page;
     // it should be indexable but never compete with the variety page.
     robots: { index: true, follow: true },
@@ -68,7 +76,14 @@ export default async function LotPassportPage({ params }: PageProps) {
 
   return (
     <>
-      <nav className="mb-6 text-sm text-muted">
+      <JsonLd
+        data={breadcrumbLd(SITE_URL, [
+          { name: "انواع برنج", path: "/" },
+          { name: variety.nameFa, path: `/rice/${variety.slug}` },
+          { name: `محموله ${lot.code}`, path: `/lot/${lot.code}` },
+        ])}
+      />
+      <nav aria-label="مسیر صفحه" className="mb-6 text-sm text-muted">
         <a href="/" className="hover:text-brand">
           انواع برنج
         </a>
@@ -77,7 +92,7 @@ export default async function LotPassportPage({ params }: PageProps) {
           {variety.nameFa}
         </a>
         <span className="px-2">/</span>
-        <span>شناسنامه محموله</span>
+        <span aria-current="page">شناسنامه محموله</span>
       </nav>
 
       <header className="mb-8">

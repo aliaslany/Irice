@@ -109,6 +109,10 @@ jobs:
 
           curl -sf http://127.0.0.1:3000/rice/tarom-hashemi | grep -q 'application/ld+json' \
             || { echo "::error::variety page missing structured data"; exit 1; }
+          curl -sf http://127.0.0.1:3000/rice/tarom-hashemi | grep -q '"BreadcrumbList"' \
+            || { echo "::error::variety page missing breadcrumb structured data"; exit 1; }
+          curl -sf http://127.0.0.1:3000/robots.txt | grep -q '^Disallow: /admin' \
+            || { echo "::error::robots.txt does not keep crawlers out of /admin"; exit 1; }
           curl -sf http://127.0.0.1:3000/lot/THM-1405-03 | grep -q 'شناسنامه محموله' \
             || { echo "::error::lot passport did not render"; exit 1; }
           curl -sf http://127.0.0.1:3000/sitemap.xml | grep -q '/lot/THM-1405-03' \

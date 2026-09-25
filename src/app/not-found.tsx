@@ -1,3 +1,7 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "صفحه پیدا نشد", robots: { index: false } };
+
 export default function NotFound() {
   return (
     <div className="py-16 text-center">

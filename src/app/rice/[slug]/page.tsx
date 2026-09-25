@@ -9,6 +9,15 @@ import { Field, HarvestBadge, LotCode, Price, Weight, gradeLabel } from "../../.
 import { addToCartAction } from "../../_actions/cart-actions";
 import { formatJalali } from "../../../globals/date";
 import { canReview, getVarietyReviewSummary, listVarietyReviews } from "../../../modules/reviews/reviews";
+import {
+  breadcrumbLd,
+  grainTypeLabel,
+  OPEN_GRAPH_BASE,
+  productLd,
+  varietyKeywords,
+  withinMetaLength,
+} from "../../../modules/seo/structured-data";
+import { JsonLd } from "../../../components/JsonLd";
 import { getCurrentCustomer } from "../../lib/session";
 import { ReviewForm } from "./ReviewForm";
 
@@ -27,19 +36,26 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const { variety, lots } = detail;
   const origin = lots[0]?.lot;
-  const description =
-    variety.summaryFa ??
-    (origin
-      ? `${variety.nameFa} از ${origin.originCity}، برداشت ${toPersianDigits(String(origin.harvestYear))}، با شناسنامه محموله.`
-      : `${variety.nameFa} — برنج ایرانی درجه یک.`);
+  const originDetail = origin
+    ? `${variety.nameFa} از ${origin.originCity}، برداشت ${toPersianDigits(String(origin.harvestYear))}، با شناسنامه محموله.`
+    : null;
+  const description = variety.summaryFa
+    ? originDetail
+      ? withinMetaLength(variety.summaryFa, originDetail)
+      : variety.summaryFa
+    : (originDetail ?? `${variety.nameFa} — برنج ایرانی درجه یک.`);
+  const title = `خرید برنج ${variety.nameFa}`;
 
   return {
-    title: `خرید ${variety.nameFa}`,
+    title,
     description,
+    keywords: varietyKeywords(variety, [...new Set(lots.map(({ lot }) => lot.originProvince))]),
     alternates: { canonical: `/rice/${variety.slug}` },
     openGraph: {
-      title: `خرید ${variety.nameFa} | آیرایس`,
+      ...OPEN_GRAPH_BASE,
+      title,
       description,
+      url: `/rice/${variety.slug}`,
       ...(variety.heroImageUrl ? { images: [variety.heroImageUrl] } : {}),
     },
   };
@@ -60,61 +76,28 @@ export default async function VarietyPage({ params }: PageProps) {
   ]);
   const canSubmitReview = customer ? await canReview(customer.id, variety.id) : false;
 
-  /**
-   * Product structured data. `offers` is priced in IRR because schema.org has
-   * no Toman currency code — the page displays Toman, the markup states rial,
-   * and the two differ by a factor of ten by definition, not by accident.
-   */
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: variety.nameFa,
-    description: variety.summaryFa ?? undefined,
-    category: "برنج ایرانی",
-    ...(variety.heroImageUrl ? { image: variety.heroImageUrl } : {}),
-    // One offer per SKU. The lot code is part of the name because two lots of
-    // the same variety sell the same pack size at different prices — without
-    // it the feed carries several identical names with conflicting prices,
-    // which is ambiguous to a crawler and wrong to a shopper.
-    offers: lots.flatMap(({ lot, skus }) =>
-      skus.map((sku) => ({
-        "@type": "Offer",
-        sku: sku.id,
-        name: `${variety.nameFa} ${toPersianDigits(String(sku.packSizeG / 1000))} کیلوگرم — محموله ${lot.code}`,
-        price: sku.priceRial,
-        priceCurrency: "IRR",
-        availability: "https://schema.org/InStock",
-        itemCondition: "https://schema.org/NewCondition",
-        productionDate: String(lot.harvestYear),
-        url: `${SITE_URL}/lot/${lot.code}`,
-      })),
-    ),
-    // Google requires a real review count behind this — never a placeholder
-    // seed rating. Omitted entirely, not zeroed, when nobody has reviewed yet.
-    ...(reviewSummary.reviewCount > 0
-      ? {
-          aggregateRating: {
-            "@type": "AggregateRating",
-            ratingValue: reviewSummary.averageRating,
-            reviewCount: reviewSummary.reviewCount,
-          },
-        }
-      : {}),
-  };
+  const attributes = Object.entries(variety.attributes ?? {});
+  const descriptionParagraphs = (variety.descriptionFa ?? "")
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      <JsonLd data={productLd({ siteUrl: SITE_URL, variety, lots, reviewSummary, reviews: reviewList })} />
+      <JsonLd
+        data={breadcrumbLd(SITE_URL, [
+          { name: "انواع برنج", path: "/" },
+          { name: variety.nameFa, path: `/rice/${variety.slug}` },
+        ])}
       />
 
-      <nav className="mb-6 text-sm text-muted">
+      <nav aria-label="مسیر صفحه" className="mb-6 text-sm text-muted">
         <a href="/" className="hover:text-brand">
           انواع برنج
         </a>
         <span className="px-2">/</span>
-        <span>{variety.nameFa}</span>
+        <span aria-current="page">{variety.nameFa}</span>
       </nav>
 
       <header className="mb-8">
@@ -173,6 +156,34 @@ export default async function VarietyPage({ params }: PageProps) {
               );
             })()}
           </ul>
+        </section>
+      )}
+
+      {(descriptionParagraphs.length > 0 || attributes.length > 0) && (
+        <section className="mb-8 rounded-lg border border-line bg-surface p-6 shadow-[var(--shadow-card)]">
+          <h2 className="mb-4 text-lg font-semibold">درباره برنج {variety.nameFa}</h2>
+          {descriptionParagraphs.map((paragraph, i) => (
+            <p key={i} className="mb-3 max-w-3xl leading-[var(--leading-fa)] text-ink last:mb-0">
+              {paragraph}
+            </p>
+          ))}
+          {attributes.length > 0 && (
+            <>
+              <h3 className="mt-6 mb-3 text-sm font-semibold text-muted">ویژگی‌ها</h3>
+              <dl className="flex flex-wrap gap-2">
+                <div className="rounded-full bg-surface-sunken px-3 py-1 text-sm">
+                  <dt className="inline text-muted">نوع دانه: </dt>
+                  <dd className="inline font-medium">{grainTypeLabel(variety.grainType)}</dd>
+                </div>
+                {attributes.map(([name, value]) => (
+                  <div key={name} className="rounded-full bg-surface-sunken px-3 py-1 text-sm">
+                    <dt className="inline text-muted">{name}: </dt>
+                    <dd className="inline font-medium">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </>
+          )}
         </section>
       )}
 
